@@ -460,14 +460,14 @@ Network Mode
 .. code-block:: python
 
    >> from omni_json_db import run_files_server
-   >> run_files_server(host='0.0.0.0', port=59698, files='net_storage.jdb')
+   >> run_files_server(host='127.0.0.1', port=59698, files='net_storage.jdb')
 
 **Client side:**
 
 .. code-block:: python
 
-   >> from omni_json_db import JDb, JNetFiles
-   >> jdb = JDb(JNetFiles(('0.0.0.0', 59898)))
+   >> from omni_json_db import JDb
+   >> jdb = JDb('127.0.0.1:59898')
 
 📝 Specifications
 *****************

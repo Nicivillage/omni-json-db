@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations # pylint: disable=too-many-lines
 from contextlib import contextmanager
 from datetime import date as dt_date, datetime, timedelta
 from re import compile as re_compile, findall as re_findall, match as re_match, Pattern, I as re_I, S as re_S
@@ -12,6 +12,7 @@ from typing import Any, Union, Optional, Tuple, Set, Dict, Callable, Generator, 
 #-----------------------------------------------------------------------------
 from .jdb_io import JIo, json_dumps, KEY_FILE_BUF_SIZE, VAL_FILE_BUF_SIZE # THE_1ST_DATE
 from .jdb_file import JFilesBase, JMemFiles, JDiskFiles
+from .jdb_net import JNetFiles
 from .utils import FileLock, Style, debug_break # pylint: disable=unused-import
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
@@ -386,6 +387,7 @@ class JDbKey:
         key_type = type(key)
         if key_type is str:
             if key.find(SEP_SYM) >= 0 and key not in self.jdb:
+                # pylint: disable=unnecessary-comprehension
                 return {k:v for k,v in self.item_iter(key)}
 
         elif key_type in {bytes, bytearray}:
@@ -394,7 +396,7 @@ class JDbKey:
         elif key_type in {int, float, slice, dt_date, datetime, Pattern} \
                 or callable(key) \
                 or hasattr(key, '__iter__'):
-
+            # pylint: disable=unnecessary-comprehension
             return {k:v for k,v in self.item_iter(key)}
 
         jdb = self.jdb
@@ -413,11 +415,9 @@ class JDbKey:
 
     def __setitem__(self, key:Any, val:Any) -> None:
         raise AttributeError('read only')
-        #self.jdb[key] = val
 
     def __delitem__(self, key:Any):
         raise AttributeError('read only')
-        # del self.jdb[key]
 
     def __len__(self) -> int:
         return len(self.jdb)
@@ -721,7 +721,10 @@ class JDbReader:
         '''
             KEY_file [str,None,bytearray,JFilesBase,JMemFiles,JDiskFiles,JDbReader]
                 [None|bytearray] JMemFiles() or JMemFiles(bytearray)
-                [str]           JDiskFiles(path) (eg. 'database/test.jdb')
+                [str]
+                    ''                  = use JMemFiles() in memory
+                    '127.0.0.1:8001'    = use JNetFiles(('127.0.0.1', 8001))
+                    'database/test.jdb' = use JDiskFiles(database/test.jdb)
                 [JDbReader]     JDb.files_obj
                 [JFilesBase]    JMemFiles, JNetFiles or JDiskFiles
 
@@ -805,7 +808,16 @@ class JDbReader:
             files_obj = jdb.files_obj.copy()
 
         elif isinstance(KEY_file, str):
-            files_obj = JDiskFiles(KEY_file) if KEY_file else JMemFiles(None, **kwargs)
+            if not KEY_file:
+                files_obj = JMemFiles(None, **kwargs)
+            elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', KEY_file):
+                server_ip, server_port = KEY_file.split(':')
+                server_port = int(server_port)
+                assert 65535 >= server_port > 0
+                assert all(255 > int(vv) >= 0 for vv in server_ip.split('.'))
+                files_obj = JNetFiles((server_ip, server_port))
+            else:
+                files_obj = JDiskFiles(KEY_file)
 
         elif KEY_file is None or isinstance(KEY_file, bytearray):
             # KEY_file=bytearray(), VAL_table={}, LCK_file=bytearray()
@@ -903,6 +915,7 @@ class JDbReader:
             return io.n_records
 
     def __iter__(self) -> Generator[str]:
+        # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as _fp:
             yield from self.io.key_table
 
@@ -947,6 +960,7 @@ class JDbReader:
         key_type = type(key)
         if key_type is str:
             if key.find(SEP_SYM) >= 0 and key not in self:
+                # pylint: disable=unnecessary-comprehension
                 return {k:v for k,v in self.item_iter(key)}
 
         elif key_type in {bytes, bytearray}:
@@ -956,6 +970,7 @@ class JDbReader:
                 or callable(key) \
                 or hasattr(key, '__iter__'):
 
+            # pylint: disable=unnecessary-comprehension
             return {k:v for k,v in self.item_iter(key)}
 
         # str | bytes | int | float | bool
@@ -2170,12 +2185,14 @@ class JDbReader:
                     jdb.info(prefix + SEP_SYM, key=_key)
 
     def values(self) -> Generator[Any]:
+        # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
             _read = self._read
             for key,row in self.io.key_table.items():
                 yield _read(fp, key, row=row, copy=False)
 
     def items(self, read_only:bool=True) -> Generator[str,Any]:
+        # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=read_only) as fp:
             _read = self._read
             if read_only:
@@ -2203,6 +2220,7 @@ class JDbReader:
             if key is None:
                 key = slice(0, None)
 
+        # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
             io, fp, key_fp = self._get_fp(fp)
             if isinstance(key, str):
@@ -2451,6 +2469,7 @@ class JDbReader:
                         if not next_keys:
                             next_keys = None
 
+                    # pylint: disable=contextmanager-generator-missing-cleanup
                     with self.open(read_only=True) as fp:
                         _get_child = self._get_child
                         for child_name in self.io.key_table:
@@ -2510,6 +2529,7 @@ class JDbReader:
             max_date = dt_date.today()
             min_date = max_date - timedelta(days=abs(date))
 
+        # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
             io, fp, key_fp = self._get_fp(fp)
             count = 0

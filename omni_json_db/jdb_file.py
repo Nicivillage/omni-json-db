@@ -43,14 +43,14 @@ try:
             os_close(fd)
 
 except ImportError:
-    from portalocker import LOCK_SH, LOCK_NB, LOCK_EX, lock, unlock, LockException
+    from portalocker import LOCK_SH, LOCK_NB, LOCK_EX, lock as pl_lock, unlock as pl_unlock, LockException
 
     def file_rlock(fd:int, LCK_file:str) -> int:
         if not fd:
             fd = os_open(LCK_file, OPEN_FLAGS)
 
         try:
-            lock(fd, LOCK_SH | LOCK_NB)
+            pl_lock(fd, LOCK_SH | LOCK_NB)
             return fd
 
         except (IOError, OSError, LockException) as e: # pragma: no cover
@@ -62,7 +62,7 @@ except ImportError:
             fd = os_open(LCK_file, OPEN_FLAGS)
 
         try:
-            lock(fd, LOCK_EX | LOCK_NB)
+            pl_lock(fd, LOCK_EX | LOCK_NB)
             return fd
 
         except (IOError, OSError, LockException) as e: # pragma: no cover
@@ -71,7 +71,7 @@ except ImportError:
 
     def file_unlock(fd:int):
         if fd:
-            unlock(fd)
+            pl_unlock(fd)
             os_close(fd)
 
 #---------------------------------------------------------------------

@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations # pylint: disable=too-many-lines
 from abc import ABCMeta, abstractmethod
 from typing import Any, Union, Optional, Tuple, Callable, Generator, IO
 from io import DEFAULT_BUFFER_SIZE
@@ -2057,9 +2057,13 @@ class JIo:
             api_ver     = self.api_ver
 
         if self.file_size > 0:
-            if index_size != self.index_size or n_records != self.n_records \
-                    or n_lines != self.n_lines or sync_id != self.sync_id \
-                    or remv_id != self.remv_id or swap_id != self.swap_id:
+            # pylint: disable=too-many-boolean-expressions
+            if index_size != self.index_size \
+                    or n_records != self.n_records \
+                    or n_lines != self.n_lines \
+                    or sync_id != self.sync_id \
+                    or remv_id != self.remv_id \
+                    or swap_id != self.swap_id:
 
                 self.file_size = 0
 

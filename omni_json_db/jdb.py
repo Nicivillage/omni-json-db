@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations # pylint: disable=too-many-lines
 from datetime import date as dt_date, datetime
 from re import findall as re_findall, match as re_match, Pattern
 from os.path import exists as path_exists
@@ -2840,7 +2840,7 @@ class JDb(JDbReader):
                             print(Style(f'\n[{level}|{id(self):x}|{hex(id(io))[-5:-1]}|fail file_id:{curr_file_id} prev:{curr_offset:,}~{next_offset:,}:{val_size2} vs {head1:,}~{tail1:,}:{val_size1} | records:{record_cnt+1} tb:{file_size:,}', red=1))
                             # assert curr_offset < head1 < next_offset
 
-                            if val_size1 > 0 and val_size2 <= 0:
+                            if val_size1 > 0 and val_size2 <= 0: # pylint: disable=R
                                 # |xxxx]          [xxxxxxx]
                                 #    [vvvv]          [vvv]
                                 del_parts[curr_row] = (curr_file_id, curr_offset, head1-curr_offset, curr_key)
@@ -2850,7 +2850,7 @@ class JDb(JDbReader):
                                 curr_row = row1
                                 curr_key = key1
 
-                            elif val_size1 <= 0 and val_size2 > 0:
+                            elif val_size1 <= 0 and val_size2 > 0: # pylint: disable=R
                                 # |vvvv]          [vvvvvvv]
                                 #    [xxxx]          [xxx]
                                 del_parts[row1] = (curr_file_id, next_offset, tail1-next_offset, key1)
