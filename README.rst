@@ -1,5 +1,8 @@
 |Logo|
 
+.. highlights::
+   "Quick and clever, the tiny squirrel stores a grand harvest of chestnuts!"
+
 |Version| |Build Status| |Pylint| |Coverage| |License|
 
 👉 Quick Links
@@ -630,7 +633,7 @@ Whether reporting bugs, discussing improvements and new ideas or writing extensi
 4. Send a pull request and bug the maintainer until it gets merged and published ☺
 
 .. |Logo| image:: https://raw.githubusercontent.com/lukatrum/omni-json-db/master/artwork/logo.png
-      :height: 280px
+      :height: 400px
       :target: https://pypi.python.org/pypi/omni-json-db/
 
 .. |Build Status| image:: https://img.shields.io/pypi/status/omni-json-db?logo=python&logoColor=white
