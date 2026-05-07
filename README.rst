@@ -637,7 +637,7 @@ Whether reporting bugs, discussing improvements and new ideas or writing extensi
    :alt: PyPI - Status
    :target: https://github.com/lukatrum/omni-json-db
 
-.. |Version| image:: https://img.shields.io/pypi/v/omni-json-db?logo=pypi&logoColor=white
+.. |Version| image:: https://img.shields.io/pypi/v/omni-json-db?pypiBaseUrl=https%3A%2F%2Fpypi.org&logo=pypi&logoColor=white
    :alt: PyPI - Version
    :target: https://pypi.python.org/pypi/omni-json-db/
 
