@@ -1,3 +1,7 @@
+|Logo|
+
+|Version| |Build Status| |Pylint| |License|
+
 👉 Quick Links
 **************
 
@@ -625,4 +629,24 @@ Whether reporting bugs, discussing improvements and new ideas or writing extensi
 2. Fork `the repository <https://github.com/lukatrum/omni-json-db/>`_ on Github, create a new branch off the ``master`` branch and start making your changes (known as `GitHub Flow <https://docs.github.com/en/get-started/using-github/github-flow>`_).
 3. Write a test which shows that the bug was fixed or that the feature works as expected.
 4. Send a pull request and bug the maintainer until it gets merged and published ☺
+
+.. |Logo| image:: https://raw.githubusercontent.com/lukatrum/omni-json-db/master/artwork/logo.png
+      :height: 280px
+      :target: https://pypi.python.org/pypi/omni-json-db/
+
+.. |Build Status| image:: https://img.shields.io/pypi/status/omni-json-db
+   :alt: PyPI - Status
+   :target: https://github.com/lukatrum/omni-json-db
+
+.. |Version| image:: https://img.shields.io/pypi/v/omni-json-db
+   :alt: PyPI - Version
+   :target: https://pypi.python.org/pypi/omni-json-db/
+
+.. |License| image:: https://img.shields.io/github/license/lukatrum/omni-json-db
+   :alt: GitHub License
+   :target: https://github.com/Lukatrum/omni-json-db/blob/main/LICENSE
+
+.. |Pylint| image:: https://img.shields.io/github/actions/workflow/status/lukatrum/omni-json-db/pylint.yml?label=pylint
+   :alt: GitHub Actions Workflow Status
+   :target: https://github.com/Lukatrum/omni-json-db/actions/workflows/pylint.yml
 
