@@ -3,10 +3,10 @@ name: Pylint
 on:
   push:
     branches:
-      - main
-      - release/*
+      - 'main'
     paths: 
       - 'omni_json_db/**'
+      - '.github/workflows/**'
     
 jobs:
   build:
