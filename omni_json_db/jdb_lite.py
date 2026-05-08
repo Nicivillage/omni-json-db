@@ -1,4 +1,5 @@
-from __future__ import annotations # pylint: disable=too-many-lines
+# pylint: disable=too-many-lines
+from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date as dt_date, datetime, timedelta
 from re import compile as re_compile, findall as re_findall, match as re_match, Pattern, I as re_I, S as re_S
@@ -401,7 +402,7 @@ class JDbKey:
 
         jdb = self.jdb
         with jdb.open(read_only=True) as fp:
-            io, fp, key_fp = jdb._get_fp(fp)
+            io, fp, key_fp = jdb.f_get_fp(fp)
             if key_type is not str:
                 key = str(key)
 
@@ -501,7 +502,7 @@ class JDbKey:
         jdb = self.jdb
 
         with jdb.open(read_only=True) as fp:
-            io, fp, key_fp = jdb._get_fp(fp)
+            io, fp, key_fp = jdb.f_get_fp(fp)
             if isinstance(key, str):
                 idx = key.find(SEP_SYM)
                 if idx < 0:
@@ -518,15 +519,15 @@ class JDbKey:
                     return
 
                 jdb_name, jdb_key = key[:idx], key[idx+SEP_LEN:]
-                _get_child = jdb._get_child
+                f_get_child = jdb.f_get_child
                 if not jdb_name:
                     for jdb_name in childs:
-                        child = _get_child(fp, jdb_name)
+                        child = f_get_child(fp, jdb_name)
                         if isinstance(child, JDbReader):
                             for _key,_info in child.keys.item_iter(jdb_key):
                                 yield jdb_name+SEP_SYM+_key, _info
                 else:
-                    child = _get_child(fp, jdb_name)
+                    child = f_get_child(fp, jdb_name)
                     if isinstance(child, JDbReader):
                         for _key,_info in child.keys.item_iter(jdb_key):
                             yield jdb_name+SEP_SYM+_key, _info
@@ -578,7 +579,7 @@ class JDbKey:
                 n_lines = io.n_lines
                 io_read_key = io.read_key
                 io_conv_date = io.conv_date
-                new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = jdb._slice(fp, key)
+                new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = jdb.f_slice(fp, key)
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
                     if not n_lines > row_id >= 0: continue
 
@@ -975,7 +976,7 @@ class JDbReader:
 
         # str | bytes | int | float | bool
         with self.open(read_only=True) as fp:
-            return self._read(fp, key, copy=True)
+            return self.f_read(fp, key, copy=True)
 
     def __contains__(self, keys:Set[str]) -> bool:
         return self.is_superset(keys)
@@ -1001,15 +1002,15 @@ class JDbReader:
                     if jdb.io.n_records != self.io.n_records:
                         return False
 
-                    _read = self._read
-                    jdb_read = jdb._read
+                    f_read = self.f_read
+                    jdb_read = jdb.f_read
                     jdb_key_table = jdb.io.key_table
                     for key,row in self.io.key_table.items():
                         ref_row = jdb_key_table[key]
                         if ref_row < 0:
                             return False
 
-                        if _read(fp, key, row=row, copy=False) != jdb_read(ref_fp, key, row=ref_row, copy=False):
+                        if f_read(fp, key, row=row, copy=False) != jdb_read(ref_fp, key, row=ref_row, copy=False):
                             return False
 
         elif isinstance(jdb, dict):
@@ -1017,12 +1018,12 @@ class JDbReader:
                 if self.io.n_records != len(jdb):
                     return False
 
-                _read = self._read
+                f_read = self.f_read
                 for key,row in self.io.sorted_key_table_items():
                     if key not in jdb:
                         return False
 
-                    if _read(fp, key, row=row, copy=False) != jdb[key]:
+                    if f_read(fp, key, row=row, copy=False) != jdb[key]:
                         return False
 
         elif isinstance(jdb, set):
@@ -1101,7 +1102,7 @@ class JDbReader:
     def __rxor__(self, keys:Set[str]) -> Set[str]:
         return self.symmetric_difference(keys)
 
-    def _slice(self, fp_dict:dict, key:Union[dt_date,datetime,Any]) -> tuple:
+    def f_slice(self, fp_dict:dict, key:Union[dt_date,datetime,Any]) -> tuple:
         chk_new_date = True
         if isinstance(key, dt_date):
             key = slice(key, key+timedelta(days=1))
@@ -1210,7 +1211,7 @@ class JDbReader:
                 pass
 
             elif isinstance(key.start, str):
-                io, fp_dict, key_fp = self._get_fp(fp_dict)
+                io, fp_dict, key_fp = self.f_get_fp(fp_dict)
                 _row_id = key_table[key.start]
                 if n_records > _row_id >= 0:
                     _k, _f, _o, _s, _vs, ver, _d = io.read_key(key_fp, _row_id)
@@ -1228,7 +1229,7 @@ class JDbReader:
                 pass
 
             elif isinstance(key.stop, str):
-                io, fp_dict, key_fp = self._get_fp(fp_dict)
+                io, fp_dict, key_fp = self.f_get_fp(fp_dict)
                 _row_id = key_table[key.stop]
                 if n_records > _row_id >= 0:
                     _k, _f, _o, _s, _vs, ver, _d = io.read_key(key_fp, _row_id)
@@ -2161,7 +2162,7 @@ class JDbReader:
                 print(f'[v{api_ver}|{type_str}|{zip_str}|{limit_str}|{io.index_size:3d}|{"H" if self.write_hook else "_"}{"c" if self._cache_limit > 0 else "C" if self._cache_limit < 0 else "_"}{str(self.flags)}] {files_obj.get_name()} | {io.n_records:,}+{io.n_lines-io.n_records:,} |{data_size} s:{io.sync_id}/{io.swap_id}/{io.remv_id}')
 
                 for _key in sorted(io.groups):
-                    jdb = self._get_group(fp, _key)
+                    jdb = self.f_get_group(fp, _key)
                     if isinstance(jdb, JDbReader):
                         jdb.info(prefix + '  ', key=_key)
 
@@ -2199,7 +2200,7 @@ class JDbReader:
 
                 print(prefix+f'[v{api_ver}|{type_str}|{zip_str}|{limit_str}|{io.index_size:3d}|{"H" if self.write_hook else "_"}{"c" if self._cache_limit > 0 else "C" if self._cache_limit < 0 else "_"}{str(self.flags)}] {key} | {self.files_obj.get_name()} | {io.n_records:,}+{io.n_lines-io.n_records:,} |{data_size} s:{io.sync_id}/{io.swap_id}/{io.remv_id} ')
                 for _key in sorted(io.groups):
-                    jdb = self._get_group(key_fp, _key)
+                    jdb = self.f_get_group(key_fp, _key)
                     if isinstance(jdb, JDbReader):
                         jdb.info(prefix + '  ', key=_key)
 
@@ -2211,21 +2212,21 @@ class JDbReader:
     def values(self) -> Generator[Any]:
         # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
-            _read = self._read
+            f_read = self.f_read
             for key,row in self.io.key_table.items():
-                yield _read(fp, key, row=row, copy=False)
+                yield f_read(fp, key, row=row, copy=False)
 
     def items(self, read_only:bool=True) -> Generator[str,Any]:
         # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=read_only) as fp:
-            _read = self._read
+            f_read = self.f_read
             if read_only:
                 for key,row in self.io.key_table.items():
-                    yield key, _read(fp, key, row=row, copy=False)
+                    yield key, f_read(fp, key, row=row, copy=False)
             else:
                 for key,row in self.io.sorted_key_table_items(copy=True):
                     # cannot use row argument while using yield
-                    yield key, _read(fp, key, copy=False)
+                    yield key, f_read(fp, key, copy=False)
 
     def item_iter(self, key:Optional[Any]=None) -> Generator[str,Any]:
         if isinstance(key, Pattern):
@@ -2246,13 +2247,13 @@ class JDbReader:
 
         # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
-            io, fp, key_fp = self._get_fp(fp)
+            io, fp, key_fp = self.f_get_fp(fp)
             if isinstance(key, str):
                 idx = key.find(SEP_SYM)
                 if idx < 0:
                     row_id = io.key_table[key]
                     if row_id >= 0:
-                        yield key, self._read(fp, key, row=row_id, copy=False)
+                        yield key, self.f_read(fp, key, row=row_id, copy=False)
 
                     return
 
@@ -2261,16 +2262,16 @@ class JDbReader:
                     return
 
                 jdb_name, jdb_key = key[:idx], key[idx+SEP_LEN:]
-                _get_child = self._get_child
-                _read = self._read
+                f_get_child = self.f_get_child
+                f_read = self.f_read
                 if not jdb_name:
                     for jdb_name in childs:
-                        child = _get_child(fp, jdb_name)
+                        child = f_get_child(fp, jdb_name)
                         if isinstance(child, JDbReader):
                             for _key,_val in child.item_iter(jdb_key):
                                 yield jdb_name+SEP_SYM+_key, _val
                 else:
-                    child = _get_child(fp, jdb_name)
+                    child = f_get_child(fp, jdb_name)
                     if isinstance(child, JDbReader):
                         for _key,_val in child.item_iter(jdb_key):
                             yield jdb_name+SEP_SYM+_key, _val
@@ -2285,7 +2286,7 @@ class JDbReader:
 
                 if n_records > row_id > 0:
                     _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                    yield _key, self._read(fp, _key, row=row_id, copy=False)
+                    yield _key, self.f_read(fp, _key, row=row_id, copy=False)
 
                 return
 
@@ -2303,7 +2304,7 @@ class JDbReader:
                     _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
                     if ver != sync_id:
                         continue
-                    yield _key, self._read(fp, _key, row=row_id, copy=False)
+                    yield _key, self.f_read(fp, _key, row=row_id, copy=False)
 
                 return
 
@@ -2312,12 +2313,12 @@ class JDbReader:
                 cache_limit = self._cache_limit
                 _update_cache = self._update_cache
                 _decode_row = self._decode_row
-                _get_val_fp = self._get_val_fp
+                f_get_val_fp = self.f_get_val_fp
                 n_records = io.n_records
                 io_read_key = io.read_key
                 io_conv_date = io.conv_date
                 io_read_value = io.read_value
-                new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self._slice(fp, key)
+                new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
                     if not n_records > row_id >= 0: continue
@@ -2341,7 +2342,7 @@ class JDbReader:
                         if size == 0:
                             val = _decode_row(file_id, offset, _key, vsize)
                         else:
-                            val_fp, __i, __o  = _get_val_fp(fp, file_id)
+                            val_fp, __i, __o  = f_get_val_fp(fp, file_id)
                             val = io_read_value(val_fp, offset, size, vsize)
 
                         if cache_limit != 0:
@@ -2352,17 +2353,17 @@ class JDbReader:
                 return
 
             if k_arg_cnt > 0:
-                _read = self._read
+                f_read = self.f_read
                 if k_arg_cnt == 2:
                     for _key,row_id in io.key_table.items():
-                        val = _read(fp, _key, row=row_id, copy=False)
+                        val = f_read(fp, _key, row=row_id, copy=False)
                         if not is_matched(_key, val): continue
                         yield _key, val
 
                 elif k_arg_cnt == 1:
                     for _key,row_id in io.key_table.items():
                         if not is_matched(_key): continue
-                        val = _read(fp, _key, row=row_id, copy=False)
+                        val = f_read(fp, _key, row=row_id, copy=False)
                         yield _key, val
 
                 return
@@ -2372,7 +2373,7 @@ class JDbReader:
 
             elif hasattr(key, '__iter__'):
                 done = set()
-                _read = self._read
+                f_read = self.f_read
                 key_table = io.key_table
                 has_childs = len(io.groups) > 0 or len(self.childs) > 0
                 for _key in key:
@@ -2389,7 +2390,7 @@ class JDbReader:
 
                         continue
 
-                    val = _read(fp, _key, row=row_id, copy=False)
+                    val = f_read(fp, _key, row=row_id, copy=False)
                     yield _key, val
 
                 return
@@ -2398,7 +2399,7 @@ class JDbReader:
             key = str(key)
             row_id = io.key_table[key]
             if row_id >= 0:
-                yield key, self._read(fp, key, row=row_id, copy=False)
+                yield key, self.f_read(fp, key, row=row_id, copy=False)
 
     def find_iter(self, keys:Optional[Any]=None, vals:Optional[Dict[str,Any]]=None, date:Union[str,datetime,dt_date,int,None]=None, limit:int=0, with_value:bool=False, **kwargs) -> Generator[Union[str,Tuple[str,Any]]]:
         '''
@@ -2495,12 +2496,12 @@ class JDbReader:
 
                     # pylint: disable=contextmanager-generator-missing-cleanup
                     with self.open(read_only=True) as fp:
-                        _get_child = self._get_child
+                        f_get_child = self.f_get_child
                         for child_name in self.io.key_table:
                             if key_rule and not key_rule.search(child_name):
                                 continue
 
-                            child = _get_child(fp, child_name)
+                            child = f_get_child(fp, child_name)
                             if not isinstance(child, JDbReader):
                                 continue
 
@@ -2555,7 +2556,7 @@ class JDbReader:
 
         # pylint: disable=contextmanager-generator-missing-cleanup
         with self.open(read_only=True) as fp:
-            io, fp, key_fp = self._get_fp(fp)
+            io, fp, key_fp = self.f_get_fp(fp)
             count = 0
             io_read_key = io.read_key
             io_conv_date = io.conv_date
@@ -2584,7 +2585,7 @@ class JDbReader:
                         arg_cnt = key_rule.__code__.co_argcount
                         if arg_cnt == 2:
                             if key not in cache:
-                                value, value_b = self._read_with_bytes(fp, key)
+                                value, value_b = self.f_read_with_bytes(fp, key)
                             else:
                                 value = cache.get(key, None)
 
@@ -2614,7 +2615,7 @@ class JDbReader:
 
                 if value is None:
                     if key not in cache:
-                        value, value_b = self._read_with_bytes(fp, key)
+                        value, value_b = self.f_read_with_bytes(fp, key)
                     else:
                         value = cache.get(key, None)
 
@@ -2693,7 +2694,7 @@ class JDbReader:
                                     try:
                                         value_b = io.VAL_dumps(value)
                                     except ValueError:
-                                        value, value_b = self._read_with_bytes(fp, key)
+                                        value, value_b = self.f_read_with_bytes(fp, key)
 
                                 _value = value_b
                             else:
@@ -2761,7 +2762,7 @@ class JDbReader:
 
         with self.open(read_only=True) as fp:
             if len(self.key_table) != self.io.n_records:
-                self._load_keys(fp)
+                self.f_load_keys(fp)
 
         return self
 
@@ -2792,7 +2793,7 @@ class JDbReader:
 
     def load_table(self, force:bool=False) -> Tuple[Dict[str,int],Dict[int,int]]:
         with self.open(read_only=True) as fp:
-            self._load_keys(fp, force=force)
+            self.f_load_keys(fp, force=force)
             return self.io.key_table, self.io.file_table
 
     def get(self, key:str, default_val:Any=None, copy:bool=True) -> Any:
@@ -2803,7 +2804,7 @@ class JDbReader:
                 return default_val
 
             try:
-                return self._read(fp, key, copy=copy, row=row)
+                return self.f_read(fp, key, copy=copy, row=row)
 
             except KeyError:
                 return default_val
@@ -2841,17 +2842,17 @@ class JDbReader:
         data = {}
         with self.open(read_only=True) as fp:
             io = self.io
-            _read = self._read
+            f_read = self.f_read
             keys = set(keys).intersection(io.key_table)
             for key in keys:
-                data[key] = _read(fp, key, copy=False)
+                data[key] = f_read(fp, key, copy=False)
 
         return data
 
     def get_all(self, cache_only:bool=False) -> Dict[str,Any]:
         data = {}
         with self.open(read_only=True) as fp:
-            _read = self._read
+            f_read = self.f_read
             if cache_only:
                 cache_limit = self._cache_limit
                 _cache = self._cache
@@ -2859,32 +2860,32 @@ class JDbReader:
                     if len(_cache) >= cache_limit >= 0:
                         break
 
-                    _read(fp, key, row=row, copy=False)
+                    f_read(fp, key, row=row, copy=False)
 
             else:
                 for key,row in self.io.key_table.items():
-                    data[key] = _read(fp, key, row=row, copy=False)
+                    data[key] = f_read(fp, key, row=row, copy=False)
 
             return data
 
     def check_version(self, version:int, max_version:Optional[int]=None, with_value:bool=False) -> dict:
         with self.open(read_only=True) as fp:
-            return self._read_version(fp, version=version, max_version=max_version, with_value=with_value)
+            return self.f_read_version(fp, version=version, max_version=max_version, with_value=with_value)
 
     def check_row(self, row_id:int=0, with_value:bool=False) -> Optional[tuple]:
         with self.open(read_only=True) as fp:
-            return self._read_row(fp, row_id, with_value)
+            return self.f_read_row(fp, row_id, with_value)
 
     def get_bytes(self, key:str) -> bytes:
         with self.open(read_only=True) as fp:
-            return self._read_bytes(fp, key)
+            return self.f_read_bytes(fp, key)
 
     def check_status(self, keys:dict) -> Dict[str,Tuple[str,int]]:
         status = {}
         with self.open(read_only=True) as fp_dict:
-            io, fp_dict, key_fp = self._get_fp(fp_dict)
+            io, fp_dict, key_fp = self.f_get_fp(fp_dict)
             io_read_key = io.read_key
-            _read_status = self._read_status
+            f_read_status = self.f_read_status
 
             for key,ver in keys.items():
                 if key == '':
@@ -2898,7 +2899,7 @@ class JDbReader:
                             if _key not in status:
                                 status[_key] = ('+', _ver)
                 else:
-                    status[key] = _read_status(fp_dict, key, ver)
+                    status[key] = f_read_status(fp_dict, key, ver)
 
         return status
 
@@ -2915,13 +2916,13 @@ class JDbReader:
             raise KeyError
 
         with self.open(read_only=True) as fp:
-            return self._get_group(fp, key)
+            return self.f_get_group(fp, key)
 
     def get_child(self, name:str) -> Optional[JDbReader]:
         with self.open(read_only=True) as fp:
-            return self._get_child(fp, name)
+            return self.f_get_child(fp, name)
 
-    def _get_group(self, fp_dict:Dict[int,IO], key:str) -> Optional[JDbReader]:
+    def f_get_group(self, fp_dict:Dict[int,IO], key:str) -> Optional[JDbReader]:
         io = self.io
         row = io.key_table[key]
         if io.n_records > row >= 0:
@@ -2932,7 +2933,7 @@ class JDbReader:
             if not isinstance(fp_dict, dict):
                 key_fp = fp_dict
             else:
-                io, fp_dict, key_fp = self._get_fp(fp_dict)
+                io, fp_dict, key_fp = self.f_get_fp(fp_dict)
 
             _key, file_id, offset, row_size, val_size, _ver, _old_days = io.read_key(key_fp, row)
             if row_size == 0 and file_id == 0x10:
@@ -2945,7 +2946,7 @@ class JDbReader:
         self.io.groups.pop(key, None)
         return None
 
-    def _get_child(self, fp_dict:Dict[int,IO], name:str) -> Optional[JDbReader]:
+    def f_get_child(self, fp_dict:Dict[int,IO], name:str) -> Optional[JDbReader]:
         io = self.io
         childs = self.childs
         groups = io.groups
@@ -2958,14 +2959,14 @@ class JDbReader:
         if name in childs:
             jdb = childs.get(name, None)
         elif name in groups:
-            jdb = self._get_group(fp_dict, name)
+            jdb = self.f_get_group(fp_dict, name)
         else:
             return None
 
         if isinstance(jdb, JDbReader):
             return jdb
 
-        KEY_path = self._read(fp_dict, name)
+        KEY_path = self.f_read(fp_dict, name)
         if not isinstance(KEY_path, str):
             return None
 
@@ -2997,8 +2998,8 @@ class JDbReader:
 
             _cache[key] = deepcopy(val) if copy else val
 
-    def _read_row(self, fp_dict:Dict[int,IO], row_id:int, with_value:bool=False) -> Optional[tuple]:
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+    def f_read_row(self, fp_dict:Dict[int,IO], row_id:int, with_value:bool=False) -> Optional[tuple]:
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
 
         # [Case A] -------------------------------------
         if row_id < 0:
@@ -3015,7 +3016,7 @@ class JDbReader:
                     if row_size == 0:
                         val = self._decode_row(file_id, offset, key, val_size)
                     else:
-                        val_fp, __i, __o  = self._get_val_fp(fp_dict, file_id)
+                        val_fp, __i, __o  = self.f_get_val_fp(fp_dict, file_id)
                         val = io.read_value(val_fp, offset, row_size, val_size)
 
                     if self._cache_limit != 0:
@@ -3028,8 +3029,8 @@ class JDbReader:
         # [Case C] -------------------------------------
         return None
 
-    def _read_version(self, fp_dict:Dict[int,IO], version:int, max_version:Optional[int]=None, with_value:bool=False) -> Dict[str,list]:
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+    def f_read_version(self, fp_dict:Dict[int,IO], version:int, max_version:Optional[int]=None, with_value:bool=False) -> Dict[str,list]:
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
         if max_version is None:
             max_version = io.n_lines
 
@@ -3039,7 +3040,7 @@ class JDbReader:
         io_read_key = io.read_key
         io_read_value = io.read_value
         _decode_row = self._decode_row
-        _get_val_fp = self._get_val_fp
+        f_get_val_fp = self.f_get_val_fp
         _update_cache = self._update_cache
         cache_limit = self._cache_limit
         _cache = self._cache
@@ -3054,7 +3055,7 @@ class JDbReader:
                     if row_size == 0:
                         val = _decode_row(file_id, offset, key, val_size)
                     else:
-                        val_fp, __i, __o  = _get_val_fp(fp_dict, file_id)
+                        val_fp, __i, __o  = f_get_val_fp(fp_dict, file_id)
                         val = io_read_value(val_fp, offset, row_size, val_size)
 
                     if cache_limit != 0:
@@ -3066,7 +3067,7 @@ class JDbReader:
 
         return matched_list
 
-    def _read_bytes(self, fp_dict:Dict[int,IO], key:str) -> bytes:
+    def f_read_bytes(self, fp_dict:Dict[int,IO], key:str) -> bytes:
         if not isinstance(key, str):
             key = str(key)
 
@@ -3075,16 +3076,16 @@ class JDbReader:
         if not io.n_records > row >= 0:
             return b''
 
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
         _key, file_id, offset, row_size, val_size, _ver, _days = io.read_key(key_fp, row)
         if row_size == 0:
             val = self._decode_row(file_id, offset, key, val_size)
             return io.dumps_with_zip(val)
 
-        val_fp, __i, __o  = self._get_val_fp(fp_dict, file_id)
+        val_fp, __i, __o  = self.f_get_val_fp(fp_dict, file_id)
         return io.read_bytes(val_fp, offset, row_size, val_size)
 
-    def _read_with_bytes(self, fp_dict:Dict[int,IO], key:str) -> Tuple[Any, bytes]:
+    def f_read_with_bytes(self, fp_dict:Dict[int,IO], key:str) -> Tuple[Any, bytes]:
         """
         read value with unzip bytes
         
@@ -3105,14 +3106,14 @@ class JDbReader:
         if not io.n_records > row >= 0:
             raise KeyError(key)
 
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
         _key, file_id, offset, row_size, val_size, _ver, _days = io.read_key(key_fp, row)
         if row_size == 0:
             val = self._decode_row(file_id, offset, key, val_size)
             val_bytes = io.VAL_dumps(val) # without zip
             return val, val_bytes
 
-        val_fp, __i, __o  = self._get_val_fp(fp_dict, file_id)
+        val_fp, __i, __o  = self.f_get_val_fp(fp_dict, file_id)
         val_fp.seek(offset)
         if val_size > 0:
             val_bytes = val_fp.read(val_size)
@@ -3132,7 +3133,7 @@ class JDbReader:
         except Exception as e:
             raise ValueError from e
 
-    def _read(self, fp_dict:Dict[int,IO], key:Optional[str], default_val:Optional[Any]=None, row:Optional[int]=None, copy:bool=True) -> Any:
+    def f_read(self, fp_dict:Dict[int,IO], key:Optional[str], default_val:Optional[Any]=None, row:Optional[int]=None, copy:bool=True) -> Any:
         if not isinstance(key, str):
             key = str(key)
 
@@ -3151,7 +3152,7 @@ class JDbReader:
 
                 raise KeyError(key)
 
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
         if row >= io.n_records:
             io.key_table.pop(key, -1)
             if default_val is not None:
@@ -3168,7 +3169,7 @@ class JDbReader:
         if row_size == 0:
             val = self._decode_row(file_id, offset, _key, val_size)
         else:
-            val_fp, __i, __o  = self._get_val_fp(fp_dict, file_id)
+            val_fp, __i, __o  = self.f_get_val_fp(fp_dict, file_id)
             try:
                 val = io.read_value(val_fp, offset, row_size, val_size)
 
@@ -3181,7 +3182,7 @@ class JDbReader:
         self._update_cache(_key, val, copy=False)
         return deepcopy(val) if copy else val
 
-    def _load_keys(self, fp_dict:Dict[int,IO], force:bool=False):
+    def f_load_keys(self, fp_dict:Dict[int,IO], force:bool=False):
         key_fp = fp_dict.get(-1, None)
         if key_fp is None:
             files_obj = self.files_obj
@@ -3201,7 +3202,7 @@ class JDbReader:
             self._cache.clear()
             self.fsize = io.file_size
 
-    def _find_keys(self, fp_dict:Dict[int,IO], pattern:Union[str,Pattern], **kwargs) -> Set[str]:
+    def f_find_keys(self, fp_dict:Dict[int,IO], pattern:Union[str,Pattern], **kwargs) -> Set[str]:
         if isinstance(pattern, Pattern):
             pass
         elif isinstance(pattern, str):
@@ -3209,7 +3210,7 @@ class JDbReader:
         else:
             raise TypeError(pattern)
 
-        io, fp_dict, _key_fp = self._get_fp(fp_dict)
+        io, fp_dict, _key_fp = self.f_get_fp(fp_dict)
         matches = set()
         for key in io.key_table:
             if pattern.search(key):
@@ -3217,11 +3218,11 @@ class JDbReader:
 
         return matches
 
-    def _read_status(self, fp_dict:Dict[int,IO], key:str, ver:int) -> Tuple[str,int]:
+    def f_read_status(self, fp_dict:Dict[int,IO], key:str, ver:int) -> Tuple[str,int]:
         if not isinstance(key, str):
             key = str(key)
 
-        io, fp_dict, key_fp = self._get_fp(fp_dict)
+        io, fp_dict, key_fp = self.f_get_fp(fp_dict)
         row = io.key_table[key]
         if row < 0:
             io_read_key = io.read_key
@@ -3245,7 +3246,7 @@ class JDbReader:
 
         return ('!', _ver) # changed
 
-    def _get_fp(self, fp_dict:Optional[Dict[int,IO]]) -> Tuple[JIo,Dict[int,IO],IO]:
+    def f_get_fp(self, fp_dict:Optional[Dict[int,IO]]) -> Tuple[JIo,Dict[int,IO],IO]:
         if fp_dict is None:
             ident = get_ident()
             fp_dict = self.fp_table[ident]
@@ -3272,7 +3273,7 @@ class JDbReader:
 
         return io, fp_dict, key_fp
 
-    def _get_val_fp(self, fp_dict:Dict[int,IO], file_id:Optional[int]=None, max_fp:int=64) -> Tuple[IO,int,int]:
+    def f_get_val_fp(self, fp_dict:Dict[int,IO], file_id:Optional[int]=None, max_fp:int=64) -> Tuple[IO,int,int]:
         io = self.io
         file_table = io.file_table
 

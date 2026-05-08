@@ -16,9 +16,9 @@ from .jdb_net import JNetFiles, ThreadedTCPServer, ServerHandler
 __package_name__    = 'omni_json_db'
 __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
-__description__     = 'A zero-config, serverless JSON-based KV database. No schema, no setup, just data.'
+__description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.08.04'
+__version__         = '2.08.05'
 
 __all__ = [
     'JDb',

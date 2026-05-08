@@ -418,15 +418,15 @@ Advanced
    # insert records
    with jdb.open() as fp:
       for fruit,color in fruits.items():
-         jdb._write(fp, fruit, color)
+         jdb.f_write(fp, fruit, color)
 
    assert jdb == fruits
 
    # modify records
    with jdb.open() as fp:
       for fruit in fruits:
-         color = jdb._read(fp, fruit)
-         jdb._write(fp, fruit, color.upper())
+         color = jdb.f_read(fp, fruit)
+         jdb.f_write(fp, fruit, color.upper())
 
    assert jdb != fruits
    assert set(jdb) == set(fruits)
@@ -434,21 +434,21 @@ Advanced
    # unmodify records
    with jdb.open() as fp:
       for fruit in fruits:
-         jdb._unwrite(fp, fruit)
+         jdb.f_unwrite(fp, fruit)
 
    assert jdb == fruits
    
    # remove records
    with jdb.open() as fp:
       for fruit in fruits:
-         jdb._delete(fp, fruit)
+         jdb.f_delete(fp, fruit)
 
    assert len(jdb) == 0
 
    # unremove records
    with jdb.open() as fp:
       for fruit in fruits:
-         jdb._undelete(fp, fruit)
+         jdb.f_undelete(fp, fruit)
 
    assert jdb == fruits
    
@@ -458,20 +458,20 @@ Advanced
 
       # replace
       for fruit in key_table:
-         color = jdb._read(fp, fruit)
-         jdb._write(fp, fruit, color.upper())
+         color = jdb.f_read(fp, fruit)
+         jdb.f_write(fp, fruit, color.upper())
 
       # unmodify
       for fruit in key_table:
-         jdb._unwrite(fp, fruit)
+         jdb.f_unwrite(fp, fruit)
 
       # remove
       for fruit in fruits:
-         jdb._delete(fp, fruit)
+         jdb.f_delete(fp, fruit)
 
       # unremove
       for fruit in fruits:
-         jdb._undelete(fp, fruit)
+         jdb.f_undelete(fp, fruit)
 
    assert jdb == fruits
    

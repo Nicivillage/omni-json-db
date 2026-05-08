@@ -261,7 +261,7 @@ class TestJDb(unittest.TestCase):
 
             with jdb.open() as fp:
                 for key in jdb.key_table:
-                    child = jdb._get_child(fp, key)
+                    child = jdb.f_get_child(fp, key)
                     if key == 'a':
                         self.assertTrue(child is gp_a)
                     elif key == 'b':
@@ -1303,16 +1303,16 @@ class TestJDb(unittest.TestCase):
             with jdb.open() as src_fp:
                 with jmem.open(read_only=False) as dst_fp:
                     for key in jdb.key_table:
-                        _bytes = jdb._read_bytes(src_fp, key)
+                        _bytes = jdb.f_read_bytes(src_fp, key)
                         self.assertTrue(len(_bytes) > 0)
-                        _ret = jmem._write_bytes(dst_fp, key, _bytes, max_wsize=0, flags=JFlag(0))
+                        _ret = jmem.f_write_bytes(dst_fp, key, _bytes, max_wsize=0, flags=JFlag(0))
                         self.assertTrue(_ret)
 
                     # test nest file lock in write mode
                     with jmem.file_lock.rlock():
                         for key in jdb.key_table:
-                            val = jmem._read(dst_fp, key)
-                            self.assertEqual(val, jdb._read(src_fp, key))
+                            val = jmem.f_read(dst_fp, key)
+                            self.assertEqual(val, jdb.f_read(src_fp, key))
 
             self.assertEqual(jdb, jmem)
 
@@ -1320,8 +1320,8 @@ class TestJDb(unittest.TestCase):
             with jdb.open() as src_fp:
                 with jmem.open(read_only=False) as dst_fp:
                     for key in jdb.key_table:
-                        _data = jdb._read(src_fp, key)
-                        _ret = jmem._write(dst_fp, key, _data, max_wsize=0, flags=JFlag(0))
+                        _data = jdb.f_read(src_fp, key)
+                        _ret = jmem.f_write(dst_fp, key, _data, max_wsize=0, flags=JFlag(0))
                         self.assertTrue(_ret)
 
             self.assertEqual(jdb, jmem)
@@ -1820,7 +1820,7 @@ class TestJDb(unittest.TestCase):
             chg = {}
             with jdb.open(read_only=True) as fp:
                 for row_id in range(jdb.n_records):
-                    info = jdb._read_row(fp, row_id, with_value=True)
+                    info = jdb.f_read_row(fp, row_id, with_value=True)
                     self.assertTrue(info[-2])
                     chg[info[0]] = info[-1]
 
@@ -1836,7 +1836,7 @@ class TestJDb(unittest.TestCase):
             try:
                 fp = jdb._open(read_only=False)
                 for key,val in expect2.items():
-                    jdb._write(fp, key, val)
+                    jdb.f_write(fp, key, val)
             finally:
                 jdb._close()
 
@@ -1845,7 +1845,7 @@ class TestJDb(unittest.TestCase):
 
             with jdb.open(read_only=False) as fp:
                 for key,val in expect2.items():
-                    jdb._write(fp, key, val)
+                    jdb.f_write(fp, key, val)
 
             ret = jdb[float(sync_id):]
             self.assertEqual(ret, expect2)
@@ -1853,7 +1853,7 @@ class TestJDb(unittest.TestCase):
             chg = {}
             with jdb.open() as fp:
                 for row_id in range(jdb.n_lines):
-                    info = jdb._read_row(fp, row_id, with_value=True)
+                    info = jdb.f_read_row(fp, row_id, with_value=True)
                     if info[-2]:
                         chg[info[0]] = info[-1]
 
@@ -2851,79 +2851,79 @@ class TestJDb(unittest.TestCase):
                 min_value_size = jdb.min_value_size
                 self.assertEqual(jdb.n_lines, 0)
                 self.assertEqual(jdb.n_records, 0)
-                jdb._write(fp, 'key1', '1' * (min_value_size // 2))
+                jdb.f_write(fp, 'key1', '1' * (min_value_size // 2))
                 self.assertEqual(jdb.n_lines, 1)
                 self.assertEqual(jdb.n_records, 1)
-                row = jdb._read_row(fp, 0)
+                row = jdb.f_read_row(fp, 0)
                 self.assertEqual(row[0], 'key1')
 
-                jdb._write(fp, 'key2', '2' * (min_value_size // 2))
+                jdb.f_write(fp, 'key2', '2' * (min_value_size // 2))
                 self.assertEqual(jdb.n_lines, 2)
                 self.assertEqual(jdb.n_records, 2)
-                row = jdb._read_row(fp, 1)
+                row = jdb.f_read_row(fp, 1)
                 self.assertEqual(row[0], 'key2')
 
-                jdb._write(fp, 'key1', 'x' * (min_value_size // 2))
+                jdb.f_write(fp, 'key1', 'x' * (min_value_size // 2))
                 self.assertEqual(jdb.n_lines, 2)
                 self.assertEqual(jdb.n_records, 2)
-                row = jdb._read_row(fp, 0)
+                row = jdb.f_read_row(fp, 0)
                 self.assertEqual(row[0], 'key1')
 
-                jdb._write(fp, 'key1', 'y' * (min_value_size - 3))
+                jdb.f_write(fp, 'key1', 'y' * (min_value_size - 3))
                 self.assertEqual(jdb.n_lines, 2)
                 self.assertEqual(jdb.n_records, 2)
-                row = jdb._read_row(fp, 0)
+                row = jdb.f_read_row(fp, 0)
                 self.assertEqual(row[0], 'key1')
 
-                jdb._write(fp, 'key1', 'z' * (min_value_size * 2))
+                jdb.f_write(fp, 'key1', 'z' * (min_value_size * 2))
                 self.assertEqual(jdb.n_records, 2)
 
-                jdb._write(fp, 'key3', '3' * (min_value_size * 2))
+                jdb.f_write(fp, 'key3', '3' * (min_value_size * 2))
                 self.assertEqual(jdb.n_records, 3)
 
-                jdb._write(fp, 'key2', '2' * (min_value_size * 2))
+                jdb.f_write(fp, 'key2', '2' * (min_value_size * 2))
                 self.assertEqual(jdb.n_records, 3)
 
-                jdb._write(fp, 'key2', '2' * (min_value_size))
+                jdb.f_write(fp, 'key2', '2' * (min_value_size))
                 self.assertEqual(jdb.n_records, 3)
 
-                jdb._write(fp, 'key1', '1' * (min_value_size))
+                jdb.f_write(fp, 'key1', '1' * (min_value_size))
                 self.assertEqual(jdb.n_records, 3)
 
-                jdb._write(fp, 'key4', '4' * (min_value_size // 2))
+                jdb.f_write(fp, 'key4', '4' * (min_value_size // 2))
                 self.assertEqual(jdb.n_records, 4)
 
-                jdb._write(fp, 'key5', '5' * (min_value_size // 2))
+                jdb.f_write(fp, 'key5', '5' * (min_value_size // 2))
                 self.assertEqual(jdb.n_records, 5)
 
-                jdb._write(fp, 'key6', '6' * (min_value_size // 2))
+                jdb.f_write(fp, 'key6', '6' * (min_value_size // 2))
                 self.assertEqual(jdb.n_records, 6)
 
-                jdb._write(fp, 'key7', '7' * (min_value_size // 2))
+                jdb.f_write(fp, 'key7', '7' * (min_value_size // 2))
                 self.assertEqual(jdb.n_records, 7)
 
-                jdb._delete(fp, 'key2')
+                jdb.f_delete(fp, 'key2')
                 self.assertEqual(jdb.n_records, 6)
 
-                jdb._delete(fp, 'key6')
+                jdb.f_delete(fp, 'key6')
                 self.assertEqual(jdb.n_records, 5)
 
-                jdb._write(fp, 'key8', '8' * (min_value_size * 4))
+                jdb.f_write(fp, 'key8', '8' * (min_value_size * 4))
                 self.assertEqual(jdb.n_records, 6)
 
-                jdb._write(fp, 'key9', '9' * (min_value_size // 2))
+                jdb.f_write(fp, 'key9', '9' * (min_value_size // 2))
                 self.assertEqual(jdb.n_records, 7)
 
                 for key in set(jdb.key_table):
-                    jdb._delete(fp, key)
+                    jdb.f_delete(fp, key)
 
                 self.assertEqual(jdb.n_records, 0)
                 self.assertEqual(jdb.index_size, index_size)
                 key = 'a' * jdb.index_size
-                jdb._write(fp, key, 'too long')
+                jdb.f_write(fp, key, 'too long')
                 self.assertGreater(jdb.index_size, index_size)
 
-                jdb._write(fp, 'key9', '9' * (min_value_size // 2))
+                jdb.f_write(fp, 'key9', '9' * (min_value_size // 2))
 
             self.assertNotEqual(jdb.sync_id, jdb1.sync_id)
             self.assertEqual(jdb, jdb1)
@@ -2933,32 +2933,32 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(jdb.sync_id, jdb1.sync_id)
 
             with jdb.open(read_only=True) as fp:
-                val = jdb._read(fp, 'key9')
+                val = jdb.f_read(fp, 'key9')
                 self.assertEqual(val, '9' * (min_value_size // 2))
 
                 self.assertNotIn('key10', jdb.key_table)
-                with jdb._switch(fp, read_only=False) as fp1:
+                with jdb.f_switch(fp, read_only=False) as fp1:
                     self.assertTrue(fp1 is fp)
-                    jdb._write(fp, 'key10', 'a' * (min_value_size // 2))
+                    jdb.f_write(fp, 'key10', 'a' * (min_value_size // 2))
                     self.assertIn('key10', jdb.key_table)
 
-                    with jdb._switch(fp, read_only=True) as fp2:
+                    with jdb.f_switch(fp, read_only=True) as fp2:
                         self.assertTrue(fp1 is fp2)
 
-                        with jdb._switch(fp, read_only=True) as fp3:
+                        with jdb.f_switch(fp, read_only=True) as fp3:
                             self.assertTrue(fp1 is fp3)
 
-                with jdb._switch(fp, read_only=False) as fp1:
+                with jdb.f_switch(fp, read_only=False) as fp1:
                     self.assertTrue(fp1 is fp)
                     self.assertNotIn('key111', jdb.key_table)
-                    jdb._write(fp1, 'key111', 'b' * (min_value_size // 2))
+                    jdb.f_write(fp1, 'key111', 'b' * (min_value_size // 2))
                     self.assertIn('key111', jdb.key_table)
-                    val = jdb._read(fp1, 'key111')
+                    val = jdb.f_read(fp1, 'key111')
                     self.assertEqual(val.strip('b'), '')
-                    with jdb._switch(fp, read_only=False) as fp2:
-                        jdb._write(fp2, 'key222', 'c' * (min_value_size // 2))
+                    with jdb.f_switch(fp, read_only=False) as fp2:
+                        jdb.f_write(fp2, 'key222', 'c' * (min_value_size // 2))
 
-                    val = jdb._read(fp1, 'key222')
+                    val = jdb.f_read(fp1, 'key222')
                     self.assertEqual(val.strip('c'), '')
 
 
@@ -3006,7 +3006,7 @@ class TestJDb(unittest.TestCase):
                 vals = jdb[:]
                 val = jdb['key0']
                 with jdb.open(read_only=True) as fp:
-                    val = jdb._read(fp, 'key0')
+                    val = jdb.f_read(fp, 'key0')
                     raise TypeError
 
             except TypeError:
@@ -3015,8 +3015,8 @@ class TestJDb(unittest.TestCase):
 
             try:
                 with jdb.open(read_only=True) as fp:
-                    val = jdb._read(fp, 'key0')
-                    jdb._write(fp, 'key0', val * 2)
+                    val = jdb.f_read(fp, 'key0')
+                    jdb.f_write(fp, 'key0', val * 2)
                     raise TypeError
 
             except TypeError:
@@ -3025,8 +3025,8 @@ class TestJDb(unittest.TestCase):
             try:
                 self.assertTrue('new_key0' not in jdb)
                 with jdb.open(read_only=True) as fp:
-                    val = jdb._read(fp, 'key0')
-                    jdb._write(fp, 'new_key0', val * 2)
+                    val = jdb.f_read(fp, 'key0')
+                    jdb.f_write(fp, 'new_key0', val * 2)
                     raise TypeError
 
             except TypeError:
@@ -3114,12 +3114,12 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(set(matches), {'kkk11', 'kkk22', 'kkk33'})
 
             with jdb.open(read_only=True) as fp:
-                matches = jdb._find_keys(fp, r'k1\d$')
+                matches = jdb.f_find_keys(fp, r'k1\d$')
 
             self.assertEqual(set(matches), {'kkk10', 'kkk11', 'kkk12', 'kkk13', 'kkk14', 'kkk15', 'kkk16', 'kkk17', 'kkk18', 'kkk19'})
 
             with jdb.open(read_only=True) as fp:
-                matches2 = jdb._find_keys(fp, re.compile(r'k1\d$'))
+                matches2 = jdb.f_find_keys(fp, re.compile(r'k1\d$'))
 
             self.assertEqual(matches, matches2)
 
@@ -3266,34 +3266,34 @@ class TestJDb(unittest.TestCase):
 
             sync_id = jdb.sync_id
             with jdb.open() as fp:
-                val = jdb._read(fp, 'kkk0')
+                val = jdb.f_read(fp, 'kkk0')
                 self.assertEqual(val, expect['kkk0'])
-                val = jdb._read(None, 'kkk0')
+                val = jdb.f_read(None, 'kkk0')
                 self.assertEqual(val, expect['kkk0'])
 
-                val = jdb._read(fp, 'kkk99')
+                val = jdb.f_read(fp, 'kkk99')
                 self.assertEqual(val, expect['kkk99'])
 
-                val = jdb._read(fp, 'kkk10')
-                ref = jdb._read_row(fp, expect['kkk10'])
+                val = jdb.f_read(fp, 'kkk10')
+                ref = jdb.f_read_row(fp, expect['kkk10'])
                 self.assertEqual(ref[0], 'kkk10')
 
-                ref = jdb._read_row(None, 10)
+                ref = jdb.f_read_row(None, 10)
                 self.assertEqual(ref[0], 'kkk10')
 
-                ref = jdb._read_row(fp, 10, with_value=True)
+                ref = jdb.f_read_row(fp, 10, with_value=True)
                 self.assertEqual(ref[-1], val)
 
             self.assertEqual(sync_id, jdb.sync_id)
 
             with jdb.open(read_only=False) as fp:
                 # self.assertIsNotNone(fp[-1])
-                val = jdb._read(fp, 'kkkk100', -1)
+                val = jdb.f_read(fp, 'kkkk100', -1)
                 self.assertEqual(val, -1)
-                _row1 = jdb._write(fp, 'kkkk100', 100)
-                val = jdb._read(fp, 'kkkk100')
+                _row1 = jdb.f_write(fp, 'kkkk100', 100)
+                val = jdb.f_read(fp, 'kkkk100')
                 self.assertEqual(val, 100)
-                _row2 = jdb._write(None, 'kkkk101', 101)
+                _row2 = jdb.f_write(None, 'kkkk101', 101)
 
             self.assertNotEqual(sync_id, jdb.sync_id)
             self.assertIn('kkkk100', jdb)
@@ -3303,18 +3303,18 @@ class TestJDb(unittest.TestCase):
 
             sync_id = jdb.sync_id
             with jdb.open(read_only=False) as fp:
-                val = jdb._read(fp, 'kkkk100', -1)
+                val = jdb.f_read(fp, 'kkkk100', -1)
                 self.assertEqual(val, 100)
-                val = jdb._delete(fp, 'kkkk100')
+                val = jdb.f_delete(fp, 'kkkk100')
                 self.assertEqual(val, 100)
 
-                val = jdb._read(fp, 'kkkk100', -1)
+                val = jdb.f_read(fp, 'kkkk100', -1)
                 self.assertEqual(val, -1)
-                val = jdb._delete(None, 'kkkk101')
+                val = jdb.f_delete(None, 'kkkk101')
                 self.assertEqual(val, 101)
                 with self.assertRaises(KeyError):
-                    val = jdb._delete(fp, 'kkkk100')
-                val = jdb._delete(fp, f'kkk{test_size-1}')
+                    val = jdb.f_delete(fp, 'kkkk100')
+                val = jdb.f_delete(fp, f'kkk{test_size-1}')
 
             self.assertEqual(len(jdb), test_size-1)
             self.assertNotEqual(sync_id, jdb.sync_id)
@@ -3440,12 +3440,12 @@ class TestJDb(unittest.TestCase):
                 self.assertEqual(jdb2.fsize, jdb.fsize)
                 if jdb.key_limit == 'no':
                     self.assertEqual(jdb2.key_table, jdb.key_table)
-                jdb._load_keys(fp)
+                jdb.f_load_keys(fp)
                 self.assertEqual(jdb2.sync_id, jdb.sync_id)
                 self.assertEqual(jdb2.fsize, jdb.fsize)
                 if jdb.key_limit == 'no':
                     self.assertEqual(jdb2.key_table, jdb.key_table)
-                jdb._load_keys(fp, force=True)
+                jdb.f_load_keys(fp, force=True)
                 self.assertEqual(jdb2.sync_id, jdb.sync_id)
                 self.assertEqual(jdb2.fsize, jdb.fsize)
                 if jdb.key_limit == 'no':
@@ -3564,20 +3564,20 @@ class TestJDb(unittest.TestCase):
             self.assertFalse(jdb2.is_latest())
 
             with jdb2.open(read_only=True) as fp:
-                with jdb2._switch(fp, read_only=False) as fp2:
+                with jdb2.f_switch(fp, read_only=False) as fp2:
                     self.assertTrue(fp is fp2)
-                    ret = jdb2._rename(fp2, 'kkkk1', 'xxx1')
+                    ret = jdb2.f_rename(fp2, 'kkkk1', 'xxx1')
                     self.assertTrue(ret)
 
                     with self.assertRaises(KeyError):
-                        jdb2._rename(fp2, 'kkkk2', 'kkkk3')
+                        jdb2.f_rename(fp2, 'kkkk2', 'kkkk3')
 
                     with self.assertRaises(KeyError):
-                        jdb2._rename(fp2, 'xxx2', 'kkkk3')
+                        jdb2.f_rename(fp2, 'xxx2', 'kkkk3')
 
-                    ret = jdb2._rename(fp2, 'kkkk10', 'xxx10')
+                    ret = jdb2.f_rename(fp2, 'kkkk10', 'xxx10')
                     self.assertTrue(ret)
-                    ret = jdb2._rename(fp2, 'kkkk100', 'xxx100')
+                    ret = jdb2.f_rename(fp2, 'kkkk100', 'xxx100')
                     self.assertTrue(ret)
 
             self.assertTrue(jdb2.is_latest())
@@ -3653,7 +3653,7 @@ class TestJDb(unittest.TestCase):
                 _prev_row = -1
                 for key,row in jdb.io.sorted_key_table_items():
                     self.assertGreater(row, _prev_row)
-                    chg[key] = jdb._read(fp, key, row=row, copy=False)
+                    chg[key] = jdb.f_read(fp, key, row=row, copy=False)
                     _prev_row = row
 
             self.assertEqual(chg, expect)
@@ -3664,7 +3664,7 @@ class TestJDb(unittest.TestCase):
                 _prev_row = jdb.n_lines
                 for key,row in jdb.io.sorted_key_table_items(reverse=True):
                     self.assertLess(row, _prev_row)
-                    chg[key] = jdb._read(fp, key, row=row, copy=False)
+                    chg[key] = jdb.f_read(fp, key, row=row, copy=False)
                     _prev_row = row
 
             self.assertEqual(chg, expect)
@@ -3820,7 +3820,7 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(jdb, expect)
 
             for key in jdb:
-                val = jdb._read(None, key)
+                val = jdb.f_read(None, key)
                 self.assertEqual(expect[key], val)
 
             for key in jdb:
@@ -3838,15 +3838,15 @@ class TestJDb(unittest.TestCase):
 
             if jdb.key_limit == 'no':
                 for key,val in jdb.items(read_only=False):
-                    jdb._write(None, key, val + 1)
-                    self.assertEqual(val + 1, jdb._read(None, key))
+                    jdb.f_write(None, key, val + 1)
+                    self.assertEqual(val + 1, jdb.f_read(None, key))
             else:
                 keys = list(jdb)
                 with jdb.open(read_only=False) as fp:
                     for key in keys:
-                        val = jdb._read(fp, key)
-                        jdb._write(fp, key, val + 1)
-                        self.assertEqual(val + 1, jdb._read(fp, key))
+                        val = jdb.f_read(fp, key)
+                        jdb.f_write(fp, key, val + 1)
+                        self.assertEqual(val + 1, jdb.f_read(fp, key))
 
             for key,val in jdb.item_iter():
                 self.assertEqual(expect[key] + 1, val)
@@ -3910,7 +3910,7 @@ class TestJDb(unittest.TestCase):
             chg = {}
             with jdbl.open(read_only=True) as fp:
                 for key in jdbl.key_table:
-                    chg[key] = jdbl._read(fp, key)
+                    chg[key] = jdbl.f_read(fp, key)
             self.assertEqual(chg, expect)
 
             cnt = sum(key in jdbl for key in expect)
@@ -4297,7 +4297,7 @@ class TestJDb(unittest.TestCase):
 
             self.assertEqual(jdb, jdb1)
             with jdb.open(read_only=False) as fp:
-                jdb._undelete(fp, 123)
+                jdb.f_undelete(fp, 123)
 
             self.assertIn(123, jdb)
             self.assertEqual(jdb[123], 'b2')
@@ -4393,16 +4393,16 @@ class TestJDb(unittest.TestCase):
 
             new_expect = {f'key{v}':list(range(test_size*2-v)) for v in range(test_size*2)}
             with jdb.open(read_only=False) as fp:
-                _io, fp, _key_fp = jdb._get_fp(fp)
+                _io, fp, _key_fp = jdb.f_get_fp(fp)
                 for key,val in new_expect.items():
                     if key not in jdb.key_table:
                         expect[key] = val
-                        jdb._write(fp, key, val)
+                        jdb.f_write(fp, key, val)
 
                     elif not random.randint(0, 1):
-                        jdb._delete(fp, key)
+                        jdb.f_delete(fp, key)
                     else:
-                        jdb._write(fp, key, val) # change
+                        jdb.f_write(fp, key, val) # change
 
             self.assertNotEqual(jdb, expect)
             ret = jdb.revert(expect)
@@ -4557,7 +4557,7 @@ class TestJDb(unittest.TestCase):
             self.assertNotEqual(info0[-1], str(old_date.date()))
 
             with jdb.open(read_only=False) as fp:
-                jdb._change_days(fp, 'kk1', _old_date)
+                jdb.f_change_days(fp, 'kk1', _old_date)
 
             self.assertEqual(jdb.keys['kk1'][-1], str(old_date.date()))
             info1 = jdb.keys['kk2']
@@ -5002,9 +5002,9 @@ class TestJDb(unittest.TestCase):
                 jmem = JDb(data_type=data_type, zip_type=zip_type, key_limit=key_limit)
                 with jmem.open() as fp:
                     for kk in 'XYZABC':
-                        jmem._write(fp, kk, val0)
-                    jmem._write(fp, 'D', val1_0)
-                    jmem._delete(fp, 'D')
+                        jmem.f_write(fp, kk, val0)
+                    jmem.f_write(fp, 'D', val1_0)
+                    jmem.f_delete(fp, 'D')
                 jmem1 = JDb(jmem).sync()
                 jmem.remove('A', 'B', 'C')
                 jmem['C'] = val1_1
@@ -5038,9 +5038,9 @@ class TestJDb(unittest.TestCase):
                 jmem = JDb(data_type=data_type, zip_type=zip_type, key_limit=key_limit)
                 with jmem.open() as fp:
                     for kk in 'XYZABC':
-                        jmem._write(fp, kk, val0)
-                    jmem._write(fp, 'D', val1_0)
-                    jmem._delete(fp, 'D')
+                        jmem.f_write(fp, kk, val0)
+                    jmem.f_write(fp, 'D', val1_0)
+                    jmem.f_delete(fp, 'D')
                 jmem1 = JDb(jmem).sync()
                 jmem['D'] = val1_1
                 jmem.remove('C', 'D')
@@ -5189,8 +5189,8 @@ class TestJDb(unittest.TestCase):
                 jmem1 = JDb(jmem).sync()
                 jmem.revert('E')
                 with jmem.open() as fp:
-                    jmem._write(fp, 'X', val1_0)
-                    jmem._delete(fp, 'X')
+                    jmem.f_write(fp, 'X', val1_0)
+                    jmem.f_delete(fp, 'X')
                 jmem['B'] = val1
                 self.assertEqual(jmem, jmem1)
                 self.assertEqual(jmem.file_table, jmem1.file_table)
@@ -5401,15 +5401,15 @@ class TestJDb(unittest.TestCase):
                 jmem.remove(adds)
                 jmem1 = JDb(jmem).sync()
                 with jmem.open() as fp:
-                    jmem._undelete(fp, 'E')
-                    jmem._write(fp, 'E', val1_0)
-                    jmem._unwrite(fp, 'E')
-                    jmem._delete(fp, 'E')
-                    jmem._undelete(fp, 'H')
+                    jmem.f_undelete(fp, 'E')
+                    jmem.f_write(fp, 'E', val1_0)
+                    jmem.f_unwrite(fp, 'E')
+                    jmem.f_delete(fp, 'E')
+                    jmem.f_undelete(fp, 'H')
 
                 with jmem1.open() as fp:
-                    jmem1._write(fp, 'C', val1_0*2)
-                    jmem1._undelete(fp, 'E')
+                    jmem1.f_write(fp, 'C', val1_0*2)
+                    jmem1.f_undelete(fp, 'E')
 
                 self.assertEqual(jmem, jmem1)
                 self.assertEqual(jmem.file_table, jmem1.file_table)
@@ -5425,10 +5425,10 @@ class TestJDb(unittest.TestCase):
                 jmem.remove('B', 'C', 'D')
                 jmem1 = JDb(jmem).sync()
                 with jmem.open() as fp:
-                    jmem._undelete(fp, 'C')
-                    jmem._write(fp, 'C', val1_0)
-                    jmem._unwrite(fp, 'C')
-                    jmem._delete(fp, 'C')
+                    jmem.f_undelete(fp, 'C')
+                    jmem.f_write(fp, 'C', val1_0)
+                    jmem.f_unwrite(fp, 'C')
+                    jmem.f_delete(fp, 'C')
 
                 jmem.revert('E')
                 self.assertEqual(jmem, jmem1)
@@ -6135,10 +6135,10 @@ class TestJDb(unittest.TestCase):
 
             last = jdb[:]
             with jdb1.open() as fp:
-                jdb1._write(fp, 'a', [11] * 10)
-                jdb1._delete(fp, 'b')
-                jdb1._undelete(fp, 'b')
-                jdb1._unwrite(fp, 'a')
+                jdb1.f_write(fp, 'a', [11] * 10)
+                jdb1.f_delete(fp, 'b')
+                jdb1.f_undelete(fp, 'b')
+                jdb1.f_unwrite(fp, 'a')
 
             self.assertEqual(jdb, jdb1)
             self.assertEqual(jdb, last)
@@ -6146,11 +6146,11 @@ class TestJDb(unittest.TestCase):
             n_lines = jdb.n_lines
             with jdb.open() as fp:
                 for v in range(100):
-                    jdb._write(fp, 'a', v)
-                    jdb._write(fp, 'a', [v]*10)
-                    jdb._write(fp, 'a', [v]*20)
+                    jdb.f_write(fp, 'a', v)
+                    jdb.f_write(fp, 'a', [v]*10)
+                    jdb.f_write(fp, 'a', [v]*20)
 
-                jdb._unwrite(fp, 'a')
+                jdb.f_unwrite(fp, 'a')
 
             self.assertEqual(jdb, last)
             self.assertEqual(jdb, jdb1)
@@ -6177,7 +6177,7 @@ class TestJDb(unittest.TestCase):
                 with jdb.open(read_only=False) as fp:
                     row = jdb.key_table.get(kk, -1)
                     if row >= 0:
-                        _val = jdb._delete(fp, kk, row=row)
+                        _val = jdb.f_delete(fp, kk, row=row)
                     else:
                         _val = None
 
@@ -6321,99 +6321,99 @@ class TestJDb(unittest.TestCase):
 
             elif op == 3:
                 with worker.open() as fp:
-                    io, fp, _key_fp = worker._get_fp(fp)
+                    io, fp, _key_fp = worker.f_get_fp(fp)
                     key_table = io.key_table
                     for key in keys:
                         try:
                             if key not in key_table:
-                                worker._undelete(fp, key)
-                                worker._write(fp, key, new_val)
-                                worker._unwrite(fp, key)
-                                worker._delete(fp, key)
+                                worker.f_undelete(fp, key)
+                                worker.f_write(fp, key, new_val)
+                                worker.f_unwrite(fp, key)
+                                worker.f_delete(fp, key)
                             else:
-                                old_val = worker._read(fp, key)
-                                worker._write(fp, key, new_val)
-                                worker._delete(fp, key)
-                                worker._undelete(fp, key)
-                                worker._unwrite(fp, key)
-                                worker._write(fp, key, old_val)
+                                old_val = worker.f_read(fp, key)
+                                worker.f_write(fp, key, new_val)
+                                worker.f_delete(fp, key)
+                                worker.f_undelete(fp, key)
+                                worker.f_unwrite(fp, key)
+                                worker.f_write(fp, key, old_val)
                         except KeyError:
                             pass
 
             elif op == 4:
                 with worker.open() as fp:
-                    io, fp, _key_fp = worker._get_fp(fp)
+                    io, fp, _key_fp = worker.f_get_fp(fp)
                     key_table = io.key_table
                     for key in keys:
                         try:
                             if key not in key_table:
-                                worker._undelete(fp, key)
-                                worker._write(fp, key, new_val)
-                                worker._unwrite(fp, key)
-                                worker._delete(fp, key)
+                                worker.f_undelete(fp, key)
+                                worker.f_write(fp, key, new_val)
+                                worker.f_unwrite(fp, key)
+                                worker.f_delete(fp, key)
                             else:
-                                old_val = worker._read(fp, key)
-                                worker._write(fp, key, new_val)
-                                worker._delete(fp, key)
-                                worker._undelete(fp, key)
-                                worker._unwrite(fp, key)
-                                worker._write(fp, key, old_val)
+                                old_val = worker.f_read(fp, key)
+                                worker.f_write(fp, key, new_val)
+                                worker.f_delete(fp, key)
+                                worker.f_undelete(fp, key)
+                                worker.f_unwrite(fp, key)
+                                worker.f_write(fp, key, old_val)
                         except KeyError:
                             pass
 
                     for key in [f'n{key_id+vv}' for vv in range(n_keys)]:
                         if key in key_table:
-                            worker._delete(fp, key)
+                            worker.f_delete(fp, key)
                         else:
-                            worker._write(fp, key, new_val)
+                            worker.f_write(fp, key, new_val)
 
             elif op == 5:
                 with worker.open() as fp:
-                    io, fp, _key_fp = worker._get_fp(fp)
+                    io, fp, _key_fp = worker.f_get_fp(fp)
                     key_table = io.key_table
                     for old_key in keys:
                         try:
                             new_key = f'n{old_key[1:]}'
                             if new_key in key_table:
                                 if old_key in key_table:
-                                    worker._unwrite(fp, old_key)
+                                    worker.f_unwrite(fp, old_key)
                                 else:
-                                    worker._undelete(fp, old_key)
+                                    worker.f_undelete(fp, old_key)
 
-                                worker._unwrite(fp, new_key)
+                                worker.f_unwrite(fp, new_key)
 
                             else:
                                 if old_key in key_table:
-                                    worker._write(fp, old_key, new_val)
+                                    worker.f_write(fp, old_key, new_val)
                                 else:
-                                    worker._undelete(fp, old_key)
+                                    worker.f_undelete(fp, old_key)
 
-                                worker._write(fp, new_key, new_val)
+                                worker.f_write(fp, new_key, new_val)
                         except KeyError:
                             pass
 
             else:
                 with worker.open() as fp:
-                    io, fp, _key_fp = worker._get_fp(fp)
+                    io, fp, _key_fp = worker.f_get_fp(fp)
                     key_table = io.key_table
                     for old_key in keys:
                         try:
                             new_key = f'n{old_key[1:]}'
                             if new_key in key_table:
                                 if old_key in key_table:
-                                    worker._delete(fp, old_key)
+                                    worker.f_delete(fp, old_key)
                                 else:
-                                    worker._write(fp, old_key, new_val)
+                                    worker.f_write(fp, old_key, new_val)
 
-                                worker._delete(fp, new_key)
+                                worker.f_delete(fp, new_key)
 
                             else:
                                 if old_key in key_table:
-                                    worker._delete(fp, old_key)
+                                    worker.f_delete(fp, old_key)
                                 else:
-                                    worker._write(fp, old_key, new_val)
+                                    worker.f_write(fp, old_key, new_val)
 
-                                worker._undelete(fp, new_key)
+                                worker.f_undelete(fp, new_key)
                         except KeyError:
                             pass
 
