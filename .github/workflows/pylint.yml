@@ -6,7 +6,7 @@ on:
       - 'main'
     paths: 
       - 'omni_json_db/**'
-      - '.github/workflows/**'
+      - '.github/workflows/pylint.yml'
     
 jobs:
   build:
