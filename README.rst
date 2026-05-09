@@ -3,7 +3,7 @@
 .. highlights::
    A nimble squirrel swiftly gathering a golden forest’s worth of acorns!
 
-|Version| |Build Status| |Pylint| |Coverage| |License|
+|Version| |Build Status| |Pylint| |Codacy| |Coverage| |License|
 
 👉 Quick Links
 **************
@@ -742,4 +742,5 @@ Whether reporting bugs, discussing improvements and new ideas or writing extensi
    :alt: Codecov
    :target: https://github.com/Lukatrum/omni-json-db/actions/workflows/codecov.yml
 
-
+.. |Codacy| image:: https://app.codacy.com/project/badge/Grade/861e1d81ccad4b8292d0062413b6daec    
+   :target: https://app.codacy.com/gh/Lukatrum/omni-json-db/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade
