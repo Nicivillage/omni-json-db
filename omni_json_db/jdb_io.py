@@ -1354,7 +1354,8 @@ class JIo:
             reserved_rate:Optional[float]=None, \
             sync_id:int=0, swap_id:int=0, remv_id:int=0):
 
-        assert isinstance(files_obj, JFilesBase)
+        if not isinstance(files_obj, JFilesBase):
+            raise TypeError
 
         if index_size is None or index_size == 0:
             index_size = DEF_INDEX_SIZE if isinstance(files_obj, JDiskFiles) else MIN_INDEX_SIZE
@@ -1422,23 +1423,29 @@ class JIo:
         self.update_days()
         self.init_APIs(api_ver)
 
-        assert isinstance(self._data_type, int) and LAST_DATA_TYPE >= self._data_type >= 0
-        assert isinstance(self._zip_type, int) and LAST_ZIP_TYPE >= self._zip_type >= 0
-        assert isinstance(self._key_limit, int)
-        assert isinstance(self.key_table, (KeyTable, DictKeyTable, BTreeKeyTable))
-        assert isinstance(self.pad_byte, bytes) and len(self.pad_byte) == 1
-        assert isinstance(self.pad0_byte, bytes) and len(self.pad0_byte) == 1
-        assert API_LATEST >= self.api_ver >= API_V0
-        assert self.VAL_zip is not None
-        assert self.VAL_unzip is not None
-        assert self.VAL_unzip0 is not None
-        assert self.VAL_dumps is not None
-        assert self.VAL_loads is not None
-        assert self.KEY_dumps is not None
-        assert self.KEY_loads is not None
-        assert self.HEAD_dumps is not None
-        assert self.HEAD_loads is not None
-        assert self.load_keys is not None
+        if not (isinstance(self._data_type, int) and LAST_DATA_TYPE >= self._data_type >= 0):
+            raise TypeError
+        if not (isinstance(self._zip_type, int) and LAST_ZIP_TYPE >= self._zip_type >= 0):
+            raise TypeError
+        if not isinstance(self._key_limit, int):
+            raise TypeError
+        if not isinstance(self.key_table, (KeyTable, DictKeyTable, BTreeKeyTable)):
+            raise TypeError
+        if not (isinstance(self.pad_byte, bytes) and len(self.pad_byte) == 1):
+            raise TypeError
+        if not (isinstance(self.pad0_byte, bytes) and len(self.pad0_byte) == 1):
+            raise TypeError
+        #pass;0;assert API_LATEST >= self.api_ver >= API_V0
+        #pass;0;assert self.VAL_zip is not None
+        #pass;0;assert self.VAL_unzip is not None
+        #pass;0;assert self.VAL_unzip0 is not None
+        #pass;0;assert self.VAL_dumps is not None
+        #pass;0;assert self.VAL_loads is not None
+        #pass;0;assert self.KEY_dumps is not None
+        #pass;0;assert self.KEY_loads is not None
+        #pass;0;assert self.HEAD_dumps is not None
+        #pass;0;assert self.HEAD_loads is not None
+        #pass;0;assert self.load_keys is not None
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__}[v{self.api_ver}|{self.data_type_str}|{self.zip_type_str}|{self.key_limit_str}|{self.index_size}|{self.n_records}+{self.n_lines-self.n_records}|k:{self.file_size:,}|s:{self.sync_id}/{self.swap_id}/{self.remv_id}] at {hex(id(self))}>'
@@ -1478,8 +1485,8 @@ class JIo:
                 else:
                     api_ver = API_V0
 
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
 
         finally:
             if fp is not None:
@@ -1667,9 +1674,12 @@ class JIo:
         if zip_type == DEF_ZIP:
             zip_type = NO_ZIP
 
-        assert isinstance(data_type, int)
-        assert isinstance(zip_type, int)
-        assert isinstance(version, int)
+        if not isinstance(data_type, int):
+            raise TypeError
+        if not isinstance(zip_type, int):
+            raise TypeError
+        if not isinstance(version, int):
+            raise TypeError
 
         if version == API_V0:
             self._data_type     = data_type
@@ -2020,7 +2030,7 @@ class JIo:
         data += b'\n'
         old_file_size = self.file_size
         if seek: fp.seek(0)
-        _size = fp.write(data)
+        fp.write(data)
         if truncate:
             file_size = fp.seek(HEADER_SIZE + n_lines * index_size)
             fp.truncate()

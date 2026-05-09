@@ -134,7 +134,8 @@ class FileLock:
     __slots__ = {'files_obj', '_is_locked', '_lock', '_cond', '_idents', '_mode', 'SIGINT'}
 
     def __init__(self, files_obj:JFilesBase):
-        assert isinstance(files_obj, JFilesBase)
+        if not isinstance(files_obj, JFilesBase):
+            raise TypeError
         self.files_obj = files_obj
         self._is_locked = Event()
         self._lock = Lock()

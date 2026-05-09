@@ -34,15 +34,15 @@
 
 * **Powerful Querying**: Search using Regular Expressions (RE), Lambda filters, or modification timestamps (Time-Travel query). [refer to `Query`_]
 
-* **Memory Caching**: Adjustable cache_limit to balance RAM usage and I/O speed.
+* **Memory Caching**: Adjustable cache_limit to balance RAM usage and I/O speed. [refer to `Supported Key Table Formats`_]
 
 * **Network Mode** (``JNetFiles``): Transform a local ``omni-json-db`` instance into a networked service with a single command using run_files_server. [refer to `Network`_]
 
 * **In-Memory Mode** (``JMemFiles``): Run the entire database in RAM for extreme performance (ideal for real-time caches or volatile session storage). [refer to `In-memory`_]
 
-* **Revertable**: Unlike traditional NoSQL stores, ``omni-json-db`` tracks internal states allowing you to unwrite (rollback a modification) or undelete a record. This provides a safety net similar to a manual "Undo" or a lightweight ACID rollback. [ref to `Rollback`_]
+* **Revertable**: Unlike traditional NoSQL stores, ``omni-json-db`` tracks internal states allowing you to unwrite (rollback a modification) or undelete a record. This provides a safety net similar to a manual "Undo" or a lightweight ACID rollback. [refer to `Rollback`_, `Backup & Restore`_]
 
-* **Native CSV Support**: Built-in hooks for DictReader and DictWriter allow you to import massive datasets from CSV files or export your ``omni-json-db`` collections for analysis in Excel or Pandas.
+* **Native CSV Support**: Built-in hooks for DictReader and DictWriter allow you to import massive datasets from CSV files or export your ``omni-json-db`` collections for analysis in Excel or Pandas. [refer to `CSV`_]
 
 * **Date-Based Lookups**: Every record is timestamped, enabling queries like "Give me all users modified last Tuesday." [refer to `Date Lookups`_]
 
@@ -124,6 +124,37 @@ Rollback
 
    jdb.revert("apple") # unremove
    assert jdb["apple"] == "red"
+
+Backup & Restore
+----------------
+
+.. code-block:: python
+
+   from omni_json_db import JDb
+   # Initialize the database from file
+   # Key-Value is Msgpack+Json with Bzip2 compression
+   jdb = JDb("fruit.jdb", data_type="S+J", zip_type='bz')
+
+   # Add fruit to jdb
+   fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}
+   jdb += fruits
+   assert jdb == fruits
+
+   # backup jdb to bak folder = ./bak/fruit.jdb
+   jdb_bak = jdb.backup('bak')
+   assert jdb_bak == fruits
+   assert jdb_bak == jdb
+
+   # del all jdb data
+   del jdb[fruits]
+   assert jdb != fruits
+   assert jdb != jdb_bak
+   assert len(jdb) == 0
+
+   # restore bak folder to jdb
+   jdb.restore('bak')
+   assert jdb == fruits
+   assert jdb == jdb_bak
 
 Query
 -----
@@ -403,6 +434,29 @@ Group
    # find fruits which contains 'a' from all groups
    matches = jdb.find(r':::a')
    print(matches) # Output: ['red:::apple', 'red:::tomato', 'yellow:::banana', 'yellow:::mango']
+
+CSV
+---
+
+.. code-block:: python
+
+   from omni_json_db import JDb
+      
+   jdb1 = JDb()
+
+   # insert value without key
+   jdb1 += [{'name': 'John', 'age': 22}, {'name': 'John', 'age': 37}, \
+            {'name': 'Bob', 'age': 42}, {'name': 'Megan', 'age': 27}]
+   
+   # export to CSV file
+   jdb1.to_csv('example.csv')
+
+   # create another JDb in memory
+   jdb2 = JDb()
+   
+   # import from CSV file
+   jdb2.from_csv('example.csv')
+   print(jdb2.find(RE='Bob')) # Output: {'name': 'Bob', 'age': 42}
 
 Advanced
 --------

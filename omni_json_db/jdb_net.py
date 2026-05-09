@@ -81,8 +81,12 @@ class JNetIO(RawIOBase):
     __slots__ = {'file', 'sock', 'lock', 'mode'}
 
     def __init__(self, sock:IO, file:str, mode:str='rb+', **kwargs):
-        assert file[:4] in {'KEY', 'LCK', 'VAL.'}
-        assert hasattr(sock, 'getsockname')
+        if not hasattr(sock, 'getsockname'):
+            raise TypeError
+
+        if not isinstance(file, str) or not file[:4] in {'KEY', 'LCK', 'VAL.'}:
+            raise TypeError
+
         super().__init__()
         self.lock = RLock()
         self.file = file
@@ -113,7 +117,9 @@ class JNetIO(RawIOBase):
         with self.lock:
             if self.closed: return
             dump_and_send(self.sock, (self.file, 'close', [], {}))
-            _resp = recv_and_load(self.sock)
+            resp = recv_and_load(self.sock)
+            if not resp.get('ok'):
+                pass # do nothing
         super().close()
 
     def readline(self, size:Optional[int]= -1) -> bytes:
@@ -854,8 +860,8 @@ class ServerHandler(BaseRequestHandler): # pragma: no cover
                 if fp is None: continue
                 try:
                     fp.close()
-                except:
-                    pass
+                except Exception as e:
+                    print(e)
 
             if verbose >= 0:
                 print(Style(f'[OUT|#{server.active_cnt}] client:{client} on {hex(thread_id)} [sock={sock}] files:{files_obj}', cyan=1, bright=1))
@@ -864,8 +870,8 @@ class ServerHandler(BaseRequestHandler): # pragma: no cover
             fp_table.clear()
             try:
                 del files_obj
-            except:
-                pass
+            except Exception as e:
+                print(e)
 
 #---------------------------------------------------------------------
 #

@@ -11,7 +11,7 @@ from threading import RLock, get_ident
 #-----------------------------------------------------------------------------
 
 try:
-    from os import oen as os_open, close as os_close, O_APPEND, O_CREAT
+    from os import open as os_open, close as os_close, O_APPEND, O_CREAT
     from fcntl import LOCK_SH, LOCK_NB, LOCK_EX, LOCK_UN, flock
 
     OPEN_FLAGS = O_APPEND | O_CREAT
@@ -86,7 +86,9 @@ class JBytesIO(RawIOBase):
     def __init__(self, buffer:bytearray, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.buf = bytearray() if buffer is None else buffer
-        assert isinstance(self.buf, bytearray)
+        if not isinstance(self.buf, bytearray):
+            raise TypeError
+
         self.idx = 0
 
     def __del__(self):
@@ -360,10 +362,14 @@ class JMemFiles(JFilesBase):
         if timestamp is None:
             timestamp = datetime.now().timestamp()
 
-        assert isinstance(KEY_file, bytearray)
-        assert isinstance(LCK_file, bytearray)
-        assert isinstance(VAL_table, dict)
-        assert isinstance(timestamp, float)
+        if not isinstance(KEY_file, bytearray):
+            raise TypeError
+        if not isinstance(LCK_file, bytearray):
+            raise TypeError
+        if not isinstance(VAL_table, dict):
+            raise TypeError
+        if not isinstance(timestamp, float):
+            raise TypeError
 
         if len(LCK_file) != 16:
             LCK_file[:] = b'\x00' * 16
@@ -493,8 +499,12 @@ class JDiskFiles(JFilesBase):
     __slots__ = {'KEY_file', 'VAL_file', 'LCK_file', 'LCK_fp', 'file_name', 'dir_name', 'group_KEY_file'}
 
     def __init__(self, KEY_file:str):
-        assert isinstance(KEY_file, str)
-        assert KEY_file != ''
+        if not isinstance(KEY_file, str):
+            raise TypeError
+
+        if not KEY_file.strip():
+            raise ValueError
+
         file_name = basename(KEY_file)
         dir_name = dirname(KEY_file)
 

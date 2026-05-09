@@ -18,7 +18,7 @@ __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
 __description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.08.06'
+__version__         = '2.08.07'
 
 __all__ = [
     'JDb',
@@ -79,15 +79,18 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
         elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', files):
             server_ip, server_port = files.split(':')
             server_port = int(server_port)
-            assert 65535 >= server_port > 0
-            assert all(255 > int(vv) >= 0 for vv in server_ip.split('.'))
+            if not 65535 >= server_port > 0 or not all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
+                raise TypeError
+
             files_obj = JNetFiles((server_ip, server_port))
         else:
             files_obj = JDiskFiles(files)
     else:
         raise TypeError
 
-    assert isinstance(files_obj, JFilesBase)
+    if not isinstance(files_obj, JFilesBase):
+        raise TypeError
+
     print(f'staring server at {host}:{port} -> {files_obj} (files={type(files)})')
     def _run_server(host:str, port:int, files_obj:Any, verbose:int=verbose):
         with ThreadedTCPServer((host, port), ServerHandler, files_obj=files_obj, verbose=verbose) as server:

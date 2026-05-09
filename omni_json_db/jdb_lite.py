@@ -814,8 +814,8 @@ class JDbReader:
             elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', KEY_file):
                 server_ip, server_port = KEY_file.split(':')
                 server_port = int(server_port)
-                assert 65535 >= server_port > 0
-                assert all(255 > int(vv) >= 0 for vv in server_ip.split('.'))
+                if not 65535 >= server_port > 0 or all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
+                    raise TypeError
                 files_obj = JNetFiles((server_ip, server_port))
             else:
                 files_obj = JDiskFiles(KEY_file)
@@ -830,7 +830,8 @@ class JDbReader:
         else:
             raise TypeError
 
-        assert isinstance(files_obj, JFilesBase)
+        if not isinstance(files_obj, JFilesBase):
+            raise TypeError
 
         if write_hook is not None:
             if not callable(write_hook):
@@ -1111,7 +1112,9 @@ class JDbReader:
             key = slice(key, key+timedelta(days=1))
             chk_new_date = False
 
-        assert isinstance(key, slice)
+        if not isinstance(key, slice):
+            raise TypeError
+
         io = self.io
         n_records = io.n_records
         n_lines = io.n_lines
@@ -3034,7 +3037,7 @@ class JDbReader:
         if max_version is None:
             max_version = io.n_lines
 
-        assert isinstance(max_version, int)
+        #pass;0;assert isinstance(max_version, int)
         version = max(version, 0)
         matched_list = {}
         io_read_key = io.read_key
@@ -3252,7 +3255,7 @@ class JDbReader:
             fp_dict = self.fp_table[ident]
 
         io = self.io
-        assert isinstance(fp_dict, dict)
+        #pass;0;assert isinstance(fp_dict, dict)
         key_fp = fp_dict.get(-1, None)
         if key_fp is None:
             files_obj = self.files_obj

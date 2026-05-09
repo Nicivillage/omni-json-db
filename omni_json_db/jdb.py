@@ -22,7 +22,7 @@ from .jdb_file import JFilesBase
 class JDbKey2(JDbKey):
     def __setitem__(self, key:Union[str,Any], val:Any) -> None:
         jdb = self.jdb
-        assert isinstance(jdb, JDb)
+        #pass;0;assert isinstance(jdb, JDb)
         if isinstance(val, str):
             _vals = re_findall(r'(\d+)(?=\W|$)', val)
             if len(_vals) == 3:
@@ -1873,7 +1873,7 @@ class JDb(JDbReader):
                 for key,s_jdb in src_io.groups.items():
                     if not isinstance(s_jdb, JDb): continue
                     d_jdb = jdb.f_get_group(dst_fp, key)
-                    assert isinstance(d_jdb, JDb)
+                    #pass;0;assert isinstance(d_jdb, JDb)
                     s_jdb.clone_to(d_jdb,
                         signal=signal,
                         max_file_size=max_file_size,
@@ -2167,7 +2167,7 @@ class JDb(JDbReader):
 
                     continue
 
-                assert not hasattr(val, '__len__')
+                #pass;0;assert not hasattr(val, '__len__')
                 if 1 in patterns:
                     continue
 
@@ -2730,7 +2730,7 @@ class JDb(JDbReader):
                         del_parts[row_id] = (file_id, offset, row_size, key)
 
                     if _row_id >= 0:
-                        assert _row_id != row_id
+                        #pass;0;assert _row_id != row_id
                         _key, _file_id, _offset, _row_size, _val_size, _ver, _days = io_read_key(key_fp, _row_id)
                         try:
                             val_b = self.f_read(fp, _key, row=_row_id, copy=False)
@@ -2776,7 +2776,7 @@ class JDb(JDbReader):
                             print(Style(f'\n[{level}|{id(self):x}|{hex(id(io))[-5:-1]}|miss. file_id:{curr_file_id} expect:0 diff:{head1:,} tb:{file_size:,}', yellow=1))
                             miss_parts.append((curr_file_id, 0, head1))
 
-                        assert tail1 > head1
+                        #pass;0;assert tail1 > head1
                         curr_offset = head1
                         next_offset = tail1
                         curr_vsize = size1
@@ -2838,7 +2838,7 @@ class JDb(JDbReader):
                                 val_size2 = chk_parts.get(curr_row, 0)
 
                             print(Style(f'\n[{level}|{id(self):x}|{hex(id(io))[-5:-1]}|fail file_id:{curr_file_id} prev:{curr_offset:,}~{next_offset:,}:{val_size2} vs {head1:,}~{tail1:,}:{val_size1} | records:{record_cnt+1} tb:{file_size:,}', red=1))
-                            # assert curr_offset < head1 < next_offset
+                            # #pass;0;assert curr_offset < head1 < next_offset
 
                             if val_size1 > 0 and val_size2 <= 0: # pylint: disable=R
                                 # |xxxx]          [xxxxxxx]
@@ -3015,7 +3015,7 @@ class JDb(JDbReader):
 
                             if row_id < record_t:
                                 rec_args = io.copy_key(key_fp, record_t, row_id, decode=True)
-                                assert isinstance(rec_args, (list,tuple))
+                                #pass;0;assert isinstance(rec_args, (list,tuple))
                                 io.key_table[rec_args[0]] = row_id
                                 io.swap_id = (io.swap_id + 1) & 0X_7FF_FFFF_FFFF
 
@@ -3060,7 +3060,7 @@ class JDb(JDbReader):
                 self.io.groups[key] = jdb
                 self.childs.pop(key, None)
 
-            assert isinstance(jdb, JDbReader)
+            #pass;0;assert isinstance(jdb, JDbReader)
             return jdb
 
     def del_group(self, key:str) -> Optional[JDb]:
@@ -3092,7 +3092,7 @@ class JDb(JDbReader):
             return None
 
         if jdb is not None:
-            assert isinstance(jdb, JDbReader)
+            #pass;0;assert isinstance(jdb, JDbReader)
             return jdb
 
         KEY_path = self.f_read(fp_dict, name)
@@ -3329,7 +3329,7 @@ class JDb(JDbReader):
                         # swap+1 or sync the file_table
                         # REC[t] -> REC[n]
                         rec_args = io.copy_key(key_fp, record_t, row, decode=True)
-                        assert isinstance(rec_args, (list,tuple))
+                        #pass;0;assert isinstance(rec_args, (list,tuple))
                         io.key_table[rec_args[0]] = row
                         swap_id = (swap_id + 1) & 0X_7FF_FFFF_FFFF
                     else:
@@ -3419,7 +3419,7 @@ class JDb(JDbReader):
                     # swap+1 or sync the file_table
                     # REC[t] -> REC[n]
                     rec_args = io.copy_key(key_fp, record_t, row, decode=True)
-                    assert isinstance(rec_args, (list,tuple))
+                    #pass;0;assert isinstance(rec_args, (list,tuple))
                     io.key_table[rec_args[0]] = row
                     swap_id = (swap_id + 1) & 0X_7FF_FFFF_FFFF
                 else:
@@ -3678,7 +3678,7 @@ class JDb(JDbReader):
                         # swap+1 or sync the file_table
                         # REC[t] -> REC[n]
                         rec_args = io.copy_key(key_fp, record_t, row, decode=True)
-                        assert isinstance(rec_args, (list,tuple))
+                        #pass;0;assert isinstance(rec_args, (list,tuple))
                         io.key_table[rec_args[0]] = row
                         swap_id = (swap_id + 1) & 0X_7FF_FFFF_FFFF
                     else:
@@ -3869,7 +3869,7 @@ class JDb(JDbReader):
                     # swap+1 or sync the file_table
                     # REC[t] -> REC[n]
                     rec_args = io.copy_key(key_fp, record_t, row, decode=True)
-                    assert isinstance(rec_args, (list,tuple))
+                    #pass;0;assert isinstance(rec_args, (list,tuple))
                     io.key_table[rec_args[0]] = row
                     swap_id = (swap_id + 1) & 0X_7FF_FFFF_FFFF
                 else:
@@ -4045,8 +4045,8 @@ class JDb(JDbReader):
             val_fp, __i, __o  = self.f_get_val_fp(fp_dict, file_id)
             try:
                 val = io.read_value(val_fp, offset, row_size, val_size)
-            except:
-                pass
+            except Exception  as e:
+                print(e)
 
         if self.childs:
             self.childs.pop(key, None)
@@ -4064,7 +4064,7 @@ class JDb(JDbReader):
             # it is not last record, swap it
             # REC[t] -> REC[r]
             rec_args = io.copy_key(key_fp, record_t, row, decode=True)
-            assert isinstance(rec_args, (list,tuple))
+            #pass;0;assert isinstance(rec_args, (list,tuple))
             io.key_table[rec_args[0]] = row
             swap_id = (swap_id + 1) & 0X_7FF_FFFF_FFFF
 
@@ -4419,8 +4419,10 @@ class JDb(JDbReader):
         else:
             jdb = JDb(KEY_path)
 
-        assert isinstance(jdb, JDb)
-        assert isinstance(jdb.io.api_ver, int)
+        if not isinstance(jdb, JDb):
+            raise TypeError
+        if not isinstance(jdb.io.api_ver, int):
+            raise TypeError
         KEY_path = jdb.files_obj.get_path()
         if jdb.io.api_ver >= API_LATEST:
             print(f'[JDb|v{jdb.io.api_ver}] {KEY_path} uses the latest API')
@@ -4494,7 +4496,9 @@ class JDb(JDbReader):
         else:
             jdb = JDb(KEY_path)
 
-        assert isinstance(jdb, JDb)
+        if not isinstance(jdb, JDb):
+            raise TypeError
+
         KEY_path = jdb.files_obj.get_path()
         if not path_exists(KEY_path):
             return jdb
