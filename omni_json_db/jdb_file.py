@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from io import RawIOBase
 from typing import Optional, IO
-from os import SEEK_SET, SEEK_CUR, SEEK_END, makedirs, getcwd, O_APPEND, O_CREAT
+from os import SEEK_SET, SEEK_CUR, SEEK_END, makedirs, getcwd
 from os import remove as os_remove, stat as os_stat
 from os.path import basename, dirname, join as path_join, exists as path_exists
 from datetime import datetime
@@ -11,10 +11,10 @@ from threading import RLock, get_ident
 #-----------------------------------------------------------------------------
 
 try:
-    OPEN_FLAGS = O_APPEND | O_CREAT
-    from os import oen as os_open, close as os_close
+    from os import oen as os_open, close as os_close, O_APPEND, O_CREAT
     from fcntl import LOCK_SH, LOCK_NB, LOCK_EX, LOCK_UN, flock
 
+    OPEN_FLAGS = O_APPEND | O_CREAT
     def file_rlock(fd:int, LCK_file:str) -> int:
         if not fd:
             fd = os_open(LCK_file, OPEN_FLAGS)
@@ -612,4 +612,4 @@ class JDiskFiles(JFilesBase):
         self.LCK_close()
         os_remove(self.LCK_file)
 
-# Pylint=8.16
+#

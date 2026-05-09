@@ -18,7 +18,7 @@ __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
 __description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.08.05'
+__version__         = '2.08.06'
 
 __all__ = [
     'JDb',
@@ -29,8 +29,8 @@ __all__ = [
     'JNetFiles',
     'SEP_SYM',
     'dumps',
-    'loads',    
-    'run_files_server',    
+    'loads',
+    'run_files_server',
 ]
 
 loads = JDb.z_loads

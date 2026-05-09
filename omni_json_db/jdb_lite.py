@@ -1250,7 +1250,7 @@ class JDbReader:
 
         return slice(_start, _stop, _step), max_ver, min_ver, max_days, min_days, filter_re, chk_new_date
 
-    def _open(self, read_only:bool=True) -> Dict[int,IO]:
+    def f_open(self, read_only:bool=True) -> Dict[int,IO]:
         with self.lock:
             file_lock = self.file_lock
             ident = file_lock.acquire(read_only=read_only) # raise RuntimeError if fail
@@ -1320,7 +1320,7 @@ class JDbReader:
 
         return None
 
-    def _close(self):
+    def f_close(self):
         with self.lock:
             ident = get_ident()
             chg_keys = self.chg_keys
@@ -3537,4 +3537,4 @@ class JDbReader:
 
         return (-1, _bytes if io._zip_type == 0 else io.zip(_bytes, zip_type=io._zip_type), n_bytes)
 
-# Pylint=8.95
+

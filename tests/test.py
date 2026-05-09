@@ -1834,11 +1834,11 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(sync_id, jdb.sync_id)
             expect2 = {f'dd{i}' : list(range(i+1)) for i in range(test_size)}
             try:
-                fp = jdb._open(read_only=False)
+                fp = jdb.f_open(read_only=False)
                 for key,val in expect2.items():
                     jdb.f_write(fp, key, val)
             finally:
-                jdb._close()
+                jdb.f_close()
 
             ret = jdb[float(sync_id):]
             self.assertEqual(ret, expect2)
