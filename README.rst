@@ -1,7 +1,7 @@
 |Logo|
 
 .. highlights::
-   One tiny, nimble squirrel swiftly gathering a golden forest’s worth of acorns!
+   A nimble squirrel swiftly gathering a golden forest’s worth of acorns!
 
 |Version| |Build Status| |Pylint| |Coverage| |License|
 
