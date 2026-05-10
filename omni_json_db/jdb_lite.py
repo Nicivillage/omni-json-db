@@ -430,14 +430,14 @@ class JDbKey:
             yield from jdb.find_iter(keys=keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs)
 
         else:
-            with jdb.open(read_only=True) as _fp:
+            with jdb.open(read_only=True):
                 io = jdb.io
                 key_table = io.key_table.copy() if copy else io.key_table
                 yield from key_table
 
     def __iter__(self) -> Generator[str]:
         jdb = self.jdb
-        with jdb.open(read_only=True) as _fp:
+        with jdb.open(read_only=True):
             yield from jdb.io.key_table
 
     def item_iter(self, key:Optional[Any]=None) -> Generator[str,tuple]:
@@ -919,7 +919,7 @@ class JDbReader:
 
     def __iter__(self) -> Generator[str]:
         # pylint: disable=contextmanager-generator-missing-cleanup
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             yield from self.io.key_table
 
     def __getitem__(self, key:Set[str]) -> Union[Dict[str,Any],Any]:
@@ -1029,7 +1029,7 @@ class JDbReader:
                         return False
 
         elif isinstance(jdb, set):
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 io = self.io
                 if io.n_records != len(jdb):
                     return False
@@ -1073,11 +1073,11 @@ class JDbReader:
 
         elif isinstance(keys, JDbReader):
             jdb = keys
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 if jdb is self or jdb.files_obj == self.files_obj:
                     return set()
 
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     return set(jdb.io.key_table).difference(self.io.key_table)
 
         elif hasattr(keys, '__iter__'):
@@ -1089,7 +1089,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             return keys.difference(self.io.key_table)
 
     def __radd__(self, keys:Set[str]) -> Set[str]:
@@ -1463,8 +1463,8 @@ class JDbReader:
 
                             key_fp.close()
 
-                    except:
-                        pass
+                    except Exception as e:
+                        print(e)
 
                 if no_raise or sync_id != io.sync_id or fsize != io.file_size:
                     io.key_table.clear()
@@ -1711,8 +1711,8 @@ class JDbReader:
             if jdb is self:
                 return set()
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return set()
 
@@ -1732,7 +1732,7 @@ class JDbReader:
             keys = {str(keys)}
 
         if keys:
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 for key in self.io.key_table:
                     if key not in keys: continue
                     keys.remove(key)
@@ -1753,12 +1753,12 @@ class JDbReader:
 
         elif isinstance(keys, JDbReader):
             jdb = keys
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 key_table = set(self.io.key_table)
                 if jdb is self or jdb.files_obj == self.files_obj:
                     return key_table
 
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     return key_table.union(jdb.io.key_table)
 
         elif hasattr(keys, '__iter__'):
@@ -1767,7 +1767,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             key_table = set(self.io.key_table)
             if not keys:
                 return key_table
@@ -1783,12 +1783,12 @@ class JDbReader:
 
         elif isinstance(keys, JDbReader):
             jdb = keys
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 key_table = set(self.io.key_table)
                 if jdb is self or not key_table or jdb.files_obj == self.files_obj:
                     return key_table
 
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     return key_table.intersection(jdb.io.key_table)
 
         elif hasattr(keys, '__iter__'):
@@ -1800,7 +1800,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             key_table = set(self.io.key_table)
             if not keys or not key_table:
                 return set()
@@ -1816,17 +1816,17 @@ class JDbReader:
 
         elif isinstance(keys, JDbReader):
             jdb = keys
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 if jdb is self or jdb.files_obj == self.files_obj:
                     return set()
 
                 key_table = set(self.io.key_table)
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     return key_table.symmetric_difference(jdb.io.key_table)
 
         elif hasattr(keys, '__iter__'):
             if not keys:
-                with self.open(read_only=True) as _fp:
+                with self.open(read_only=True):
                     return set(self.io.key_table)
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
@@ -1834,7 +1834,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             return keys.symmetric_difference(self.key_table)
 
     def symmetric_difference(self, keys:Set[str]) -> Set[str]:
@@ -1849,16 +1849,16 @@ class JDbReader:
 
         elif isinstance(keys, JDbReader):
             jdb = keys
-            with self.open(read_only=True) as _fp:
+            with self.open(read_only=True):
                 if jdb is self or jdb.files_obj == self.files_obj:
                     return set()
 
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     return set(self.io.key_table).difference(jdb.io.key_table)
 
         elif hasattr(keys, '__iter__'):
             if not keys:
-                with self.open(read_only=True) as _fp:
+                with self.open(read_only=True):
                     return set(self.io.key_table)
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
@@ -1866,7 +1866,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             return set(self.io.key_table).difference(keys)
 
     def is_superset(self, keys:Set[str]) -> bool:
@@ -1881,8 +1881,8 @@ class JDbReader:
             if jdb is self:
                 return True
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return True
 
@@ -1899,7 +1899,7 @@ class JDbReader:
         else:
             keys = {keys}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             key_table = self.io.key_table
             for key in keys:
                 if not isinstance(key, str):
@@ -1923,8 +1923,8 @@ class JDbReader:
             if jdb is self:
                 return True
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return True
 
@@ -1946,7 +1946,7 @@ class JDbReader:
         else:
             keys = {keys}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             io = self.io
             key_table = io.key_table
             #n_records = io.n_records
@@ -1972,8 +1972,8 @@ class JDbReader:
             if jdb is self:
                 return False
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return False
 
@@ -1998,7 +1998,7 @@ class JDbReader:
         else:
             keys = {keys}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             io = self.io
             keys = {key if isinstance(key, str) else str(key) for key in keys}
             if io.n_records > len(keys):
@@ -2029,7 +2029,7 @@ class JDbReader:
         finally:
             self.lock.release()
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             return key in self.io.key_table
 
     def has_(self, key:str) -> bool:
@@ -2047,7 +2047,7 @@ class JDbReader:
         finally:
             self.lock.release()
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             return key in self.io.key_table
 
     def has_any(self, keys:Set[str]) -> bool:
@@ -2062,8 +2062,8 @@ class JDbReader:
             if jdb is self:
                 return True
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return True
 
@@ -2083,7 +2083,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             key_table = self.io.key_table
             return any(key in key_table for key in keys)
 
@@ -2099,8 +2099,8 @@ class JDbReader:
             if jdb is self:
                 return True
 
-            with self.open(read_only=True) as _fp:
-                with jdb.open(read_only=True) as _ref_fp:
+            with self.open(read_only=True):
+                with jdb.open(read_only=True):
                     if jdb.files_obj == self.files_obj:
                         return True
 
@@ -2120,7 +2120,7 @@ class JDbReader:
         else:
             keys = {str(keys)}
 
-        with self.open(read_only=True) as _fp:
+        with self.open(read_only=True):
             key_table = self.io.key_table
             return all(key in key_table for key in keys)
 
@@ -2908,7 +2908,7 @@ class JDbReader:
         return status
 
     def is_latest(self) -> bool:
-        with self.KEY_fopen() as _key_fp:
+        with self.KEY_fopen():
             if self.io.is_updated():
                 fsize = self.files_obj.KEY_size()
                 return fsize == self.io.file_size

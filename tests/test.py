@@ -6486,8 +6486,8 @@ class TestJDb(unittest.TestCase):
                     #     error = _jdb.check_error()
                     #     self.assertTrue(not error)
                     #     self.assertEqual(jdb, _jdb)
-                    #     with jdb.open() as _fp1:
-                    #         with _jdb.open() as _fp2:
+                    #     with jdb.open():
+                    #         with _jdb.open():
                     #             # safe to check key_table/file_table in multi-thread
                     #             self.assertEqual(jdb.file_table, _jdb.file_table)
                     #             self.assertEqual(jdb.key_table, _jdb.key_table)

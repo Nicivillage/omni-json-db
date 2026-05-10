@@ -710,7 +710,7 @@ class JDb(JDbReader):
                     return self
 
                 # jdb != self
-                with jdb.open(read_only=True) as _ref_fp:
+                with jdb.open(read_only=True):
                     jio = jdb.io
                     if jio.n_records <= 0:
                         return self
@@ -1546,7 +1546,7 @@ class JDb(JDbReader):
         bak_jdb = self.clone_to(bak_jdb, signal='b', zip_type=zip_type, data_type=data_type, fast_mode=fast_mode, **kwargs)
 
         with self.KEY_fopen(read_only=False) as key_fp_d:
-            with bak_jdb.open(read_only=True) as _fp:
+            with bak_jdb.open(read_only=True):
                 old_file_table = self.io.file_table
                 bak_file_table = bak_jdb.io.file_table
 
