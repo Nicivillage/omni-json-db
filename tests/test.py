@@ -262,7 +262,10 @@ class TestJDb(unittest.TestCase):
             gp_b = jdb.add_group('group_b')
             self.assertIsNotNone(gp_b)
             self.assertIsInstance(gp_b, JDb)
-            gp_b['b'] = 2
+            gp_b['b'] = 0
+
+            jdb['group_b:::b'] = 2
+            jdb[':::c'] = 3
 
             with jdb.open() as fp:
                 for key in jdb.key_table:
@@ -277,8 +280,10 @@ class TestJDb(unittest.TestCase):
             key_info2 = jdb.keys['group_a:::a']
             self.assertEqual(key_info, key_info2['group_a:::a'])
             self.assertEqual(jdb['group_a:::a'], jdb[':::a'])
+            self.assertEqual(jdb.keys['group_a:::a'], jdb.keys[':::a'])
             self.assertEqual(jdb['group_a:::a'], {'group_a:::a':1})
             self.assertEqual(jdb[':::b'], {'group_b:::b':2})
+            self.assertEqual(jdb[':::c'], {'group_a:::c':3, 'group_b:::c':3})
             self.assertTrue(gp_a is not gp_b)
             gp = jdb.get_group('group_a')
             self.assertTrue(gp_a is gp)
@@ -289,6 +294,9 @@ class TestJDb(unittest.TestCase):
             self.assertTrue(gp_a is gp)
 
             matches = jdb.find(':::[ab]')
+            self.assertEqual(set(matches), {'group_a:::a', 'group_b:::b'})
+
+            matches = jdb.keys[matches]
             self.assertEqual(set(matches), {'group_a:::a', 'group_b:::b'})
 
             with self.assertRaises(KeyError):
@@ -2599,6 +2607,27 @@ class TestJDb(unittest.TestCase):
             jdb[key] = 'too long'
             self.assertGreater(jdb.index_size, index_size)
 
+            _size = len(jdb)
+            jdb += ['row1', 'row1', 'row2']
+            self.assertEqual(len(jdb), _size+3)
+
+            jdb |= ('row2', 'row2', 'row3')
+            self.assertEqual(len(jdb), _size+3+3)
+
+            jdb &= {'row3', 'row4', 'row5'}
+            self.assertEqual(len(jdb), _size+3+3+3)
+
+            jdb += 'new_key0'
+            self.assertEqual(jdb['new_key0'], None)
+            _size = len(jdb)
+
+            jdb |= 'new_key0'
+            self.assertEqual(len(jdb), _size)
+
+            jdb &= 'new_key0'
+            self.assertEqual(len(jdb), _size)
+            self.assertEqual(jdb['new_key0'], None)
+
             self.assertNotEqual(jdb.sync_id, jdb1.sync_id)
             self.assertEqual(jdb, jdb1)
             self.assertEqual(jdb.keys[:], jdb1.keys[:])
@@ -4681,6 +4710,10 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(info2[-2], '2000-01-01')
 
             today = dt.date.today()
+            yesterday = today - dt.timedelta(days=1)
+            prev_week = today - dt.timedelta(days=7)
+            prev_prev_week = today - dt.timedelta(days=14)
+
             jdb.keys['kk3'] = today
             info2 = jdb.keys['kk3']
             self.assertEqual(info2[-1], str(today))
@@ -4703,7 +4736,6 @@ class TestJDb(unittest.TestCase):
 
             jmem = JDb()
             jmem['group'] = jdb
-            yesterday = today - dt.timedelta(days=1)
             jmem.keys['group:::kk3'] = yesterday
             info2 = jdb.keys['kk3']
             self.assertEqual(info2[-1], str(yesterday))
@@ -4730,6 +4762,10 @@ class TestJDb(unittest.TestCase):
             for key,info in jdb.keys.item_iter(('kk3', 'kk4')):
                 self.assertEqual(info[-1], str(yesterday))
 
+            jmem.keys[':::kk3'] = today
+            info2 = jdb.keys['kk3']
+            self.assertEqual(info2[-1], str(today))
+
             jdb.keys[::'kk4'] = '2000-1-1 1900-10-10'
             matches = jdb.keys[::'kk4']
             self.assertTrue(len(matches) > 4)
@@ -4740,14 +4776,12 @@ class TestJDb(unittest.TestCase):
             matches = jdb.keys[1]
             self.assertTrue(len(matches) == 1)
             key = list(matches)[0]
-            prev_week = today - dt.timedelta(days=7)
             jdb.keys[1] = prev_week
             for key,info in jmem.keys[f'group:::{key}'].items():
                 self.assertEqual(info[-1], str(prev_week))
 
             matches = jdb.keys[-1.]
             self.assertTrue(len(matches) >= 1)
-            prev_prev_week = today - dt.timedelta(days=14)
             jdb.keys[-1.] = f'{prev_prev_week} {prev_prev_week}'
             for key,info2 in jmem.keys[f'group:::{key}'].items():
                 self.assertEqual(info2[-1], str(prev_prev_week))
@@ -4760,6 +4794,40 @@ class TestJDb(unittest.TestCase):
 
             jdb[1] = lambda k,v : f'{k}_{v}'
             self.assertTrue(jdb[1].startswith(r'1_'))
+
+            matches = jdb.keys[prev_prev_week:prev_week]
+            self.assertTrue(len(matches) == 0)
+            jdb.keys[prev_prev_week:prev_week] = today
+
+            prev_week = dt.datetime(prev_week.year, prev_week.month, prev_week.day)
+            matches = jdb.keys[:prev_week]
+            self.assertTrue(len(matches) > 0)
+            jdb.keys[:prev_week] = today
+
+            matches = jdb.keys[:prev_week]
+            self.assertTrue(len(matches) == 0)
+
+            matches = jdb.keys[[5, -1]] # get 5th & last records
+            self.assertEqual(len(matches), 2)
+            jdb.keys[[5, -1]] = prev_week
+            for key in matches:
+                info = jdb.keys[key]
+                self.assertEqual(info[-1], str(prev_week.date()))
+
+            matches = jmem.keys[[':::kk13', ':::kk14', ':::kk13']]
+            self.assertEqual(len(matches), 2)
+            jmem.keys[[':::kk13', ':::kk14', ':::kk13']] = prev_prev_week
+            for key,info in jmem.keys[matches].items():
+                self.assertEqual(info[-1], str(prev_prev_week))
+
+            jmem[matches] = None
+            for key,info in jmem.keys[matches].items():
+                self.assertEqual(info[-2], str(today))
+                self.assertEqual(info[-1], str(prev_prev_week))
+
+            del jmem[matches]
+            self.assertEqual(len(jmem[matches]), 0)
+            self.assertEqual(len(jmem.keys[matches]), 0)
 
             self.assertEqual(jdb, jdb1)
             self.assertEqual(jdb.keys[:], jdb1.keys[:])

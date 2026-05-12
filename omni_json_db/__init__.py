@@ -19,7 +19,7 @@ __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
 __description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.09.02'
+__version__         = '2.09.03'
 
 __all__ = [
     'JDb',
@@ -68,14 +68,12 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
     """
     if files is None or isinstance(files, bytearray):
         files_obj = JMemFiles(files)
-    elif isinstance(files, JDbReader):
+    elif isinstance(files, JDbReader): # pragma: no cover
         files_obj = files.files_obj
-    elif isinstance(files, JFilesBase):
+    elif isinstance(files, JFilesBase): # pragma: no cover
         files_obj = files
     elif isinstance(files, str):
-        if not files:
-            files_obj = JMemFiles()
-        elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', files):
+        if re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', files): # pragma: no cover
             server_ip, server_port = files.split(':')
             server_port = int(server_port)
             if not 65535 >= server_port > 0 or not all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
@@ -83,7 +81,7 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
 
             files_obj = JNetFiles((server_ip, server_port))
         else:
-            files_obj = JDiskFiles(files)
+            files_obj = JDiskFiles(files) if files else JMemFiles()
     else:
         raise TypeError
 
@@ -92,9 +90,7 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
 
     print(f'staring server at {host}:{port} -> {files_obj} (files={type(files)})')
     server = ThreadedTCPServer((host, port), ServerHandler, files_obj=files_obj, verbose=verbose)
-    if server:
-        thd = Thread(target=server.serve_forever, daemon=True)
-        thd.start()
-
+    thd = Thread(target=server.serve_forever, daemon=True)
+    thd.start()
     return server
 #

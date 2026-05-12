@@ -483,6 +483,19 @@ class JDbKey:
 
                 type = None == slice(0,None)
                     > get all items
+
+            Return: Tuple[str,tuple]
+                0: key:str 
+                1: tuple:
+                    0: row_id:int
+                    1: file_id:int
+                    2: offset:int
+                    3: row_size:int
+                    4: val_size:int
+                    5: version:int
+                    6: days:int - combine modified date + created date
+                    7: modified date: str (eg. '2000-01-01')
+                    8: created date: str  (eg. '2000-01-01')
         '''
         if isinstance(key, Pattern):
             is_matched = key.search
@@ -536,16 +549,13 @@ class JDbKey:
                 return
 
             if isinstance(key, int):
-                n_lines = io.n_lines
+                n_records = io.n_records
                 row_id = key
                 if row_id < 0:
-                    row_id = n_lines + row_id
+                    row_id = n_records + row_id
 
-                if n_lines > row_id >= 0:
+                if n_records > row_id >= 0:
                     _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                    if row_id >= io.n_records:
-                        _key = f'|{_key}|~~{ver}~\t\t'
-
                     old_date, new_date = io.z_conv_date(days)
                     yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
@@ -562,13 +572,10 @@ class JDbKey:
                 io_read_key = io.read_key
                 io_conv_date = io.z_conv_date
                 n_records = io.n_records
-                for row_id in range(io.n_lines):
+                for row_id in range(io.n_records):
                     _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
                     if ver != sync_id:
                         continue
-
-                    if row_id >= n_records:
-                        _key = f'|{_key}|~~{ver}~\t\t'
 
                     old_date, new_date = io_conv_date(days)
                     yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
@@ -640,13 +647,10 @@ class JDbKey:
                     if isinstance(_key, (int, float)): # pragma: no cover
                         row_id = int(_key)
                         if row_id < 0:
-                            row_id = io.n_lines + row_id
+                            row_id = io.n_records + row_id
 
-                        if io.n_lines > row_id >= 0:
+                        if io.n_records > row_id >= 0:
                             _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                            if row_id >= io.n_records:
-                                _key = f'|{_key}|~~{ver}~\t\t'
-
                             old_date, new_date = io_conv_date(days)
                             yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
@@ -957,16 +961,17 @@ class JDbReader:
                 > target key's value
         
         '''
-        key_type = type(key)
-        if key_type is str:
-            if key.find(SEP_SYM) >= 0 and key not in self:
-                # pylint: disable=unnecessary-comprehension
-                return {k:v for k,v in self.item_iter(key)}
+        if isinstance(key, str):
+            if key.find(SEP_SYM) >= 0:
+                with self.open(read_only=True):
+                    if key not in self.io.key_table:
+                        # pylint: disable=unnecessary-comprehension
+                        return {k:v for k,v in self.item_iter(key)}
 
-        elif key_type in {bytes, bytearray}: # pragma: no cover
+        elif isinstance(key, (bytes, bytearray)): # pragma: no cover
             pass
 
-        elif key_type in {slice, dt_date, datetime, Pattern} \
+        elif isinstance(key, (slice, dt_date, datetime, Pattern)) \
                 or callable(key) \
                 or hasattr(key, '__iter__'):
 

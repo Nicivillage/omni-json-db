@@ -29,4 +29,5 @@ exclude_lines =
     if False and .*
     if 0 and .*
     if __name__ == .__main__.:
+    return
 

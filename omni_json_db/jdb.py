@@ -68,9 +68,7 @@ class JDbKey2(JDbKey):
                 f_get_child = jdb.f_get_child
                 if not jdb_name:
                     for jdb_name in childs:
-                        if has_SIGINT():
-                            break
-
+                        if has_SIGINT(): break
                         child = f_get_child(fp, jdb_name)
                         if isinstance(child, JDb):
                             child.keys[jdb_key] = val
@@ -200,7 +198,7 @@ class JDbKey2(JDbKey):
                         continue
 
                     _key = str(_key)
-                    if _key in done:
+                    if _key in done: # pragma: no cover
                         continue
 
                     done.add(_key)
@@ -335,6 +333,28 @@ class JDb(JDbReader):
         Raises:
             TypeError: key or val type is invalid
         '''
+        if isinstance(key, str):
+            idx = key.find(SEP_SYM)
+            if idx >= 0:
+                with self.open(read_only=True) as fp:
+                    io, fp, key_fp = self.f_get_fp(fp)
+                    childs = set(io.groups).union(self.childs)
+                    if childs and key not in self.io.key_table:
+                        jdb_name, jdb_key = key[:idx], key[idx+SEP_LEN:]
+                        f_get_child = self.f_get_child
+                        if not jdb_name:
+                            has_SIGINT = self.file_lock.has_SIGINT
+                            for jdb_name in childs:
+                                if has_SIGINT(): break
+                                child = f_get_child(fp, jdb_name)
+                                if isinstance(child, JDb):
+                                    child[jdb_key] = val
+                        else:
+                            child = f_get_child(fp, jdb_name)
+                            if isinstance(child, JDb):
+                                child[jdb_key] = val
+
+                        return
 
         if callable(val):
             func = val
@@ -371,7 +391,7 @@ class JDb(JDbReader):
 
                 return
 
-            if isinstance(key, (bytes, bytearray)):
+            if isinstance(key, (bytes, bytearray)): # pragma: no cover
                 key = str(key)
 
             elif isinstance(key, (slice, dt_date, datetime)):
@@ -383,7 +403,7 @@ class JDb(JDbReader):
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
-                    if not n_records > row_id >= 0: continue
+                    if not n_records > row_id >= 0: continue # pragma: no cover
 
                     _key, _f, _o, _s, _v, ver, days = io_read_key(key_fp, row_id)
                     if not max_ver > ver >= min_ver or filter_re and not filter_re.search(_key):
@@ -462,21 +482,26 @@ class JDb(JDbReader):
             # tuple | list | set | dict
             elif hasattr(key, '__iter__'):
                 has_SIGINT = self.file_lock.has_SIGINT
+                has_childs = len(io.groups) > 0 or len(self.childs) > 0
                 f_read = self.f_read
                 f_write = self.f_write
                 done = set()
                 key_table = io.key_table
                 for _key in key:
                     _key = str(_key)
-                    if _key in done:
+                    if _key in done: # pragma: no cover
                         continue
 
                     done.add(_key)
                     if has_SIGINT():
                         break
 
+                    row_id = key_table[_key]
+                    if has_childs and row_id < 0 and _key.find(SEP_SYM) >= 0: # pylint: disable=R
+                        self[_key] = val
+                        continue
+
                     if func:
-                        row_id = key_table[_key]
                         old_val = None if row_id < 0 else f_read(fp, _key, row=row_id, copy=False)
                         new_val = func(key, old_val)
                         if new_val != old_val:
@@ -541,6 +566,29 @@ class JDb(JDbReader):
             TypeError: key type is invalid
         '''
 
+        if isinstance(key, str):
+            idx = key.find(SEP_SYM)
+            if idx >= 0:
+                with self.open(read_only=True) as fp:
+                    io, fp, key_fp = self.f_get_fp(fp)
+                    childs = set(io.groups).union(self.childs)
+                    if childs and key not in self.io.key_table:
+                        jdb_name, jdb_key = key[:idx], key[idx+SEP_LEN:]
+                        f_get_child = self.f_get_child
+                        if not jdb_name:
+                            has_SIGINT = self.file_lock.has_SIGINT
+                            for jdb_name in childs:
+                                if has_SIGINT(): break
+                                child = f_get_child(fp, jdb_name)
+                                if isinstance(child, JDb):
+                                    del child[jdb_key]
+                        else:
+                            child = f_get_child(fp, jdb_name)
+                            if isinstance(child, JDb):
+                                del child[jdb_key]
+
+                        return
+
         if isinstance(key, Pattern):
             is_matched = key.search
             k_arg_cnt = 1
@@ -556,11 +604,12 @@ class JDb(JDbReader):
 
         with self.open(read_only=True) as fp:
             io = self.io
+            has_childs = len(io.groups) > 0 or len(self.childs) > 0
             del_keys = set()
             if isinstance(key, str):
                 pass
 
-            elif isinstance(key, (bytes, bytearray)):
+            elif isinstance(key, (bytes, bytearray)): # pragma: no cover
                 key = str(key)
 
             elif isinstance(key, (slice, dt_date, datetime)):
@@ -571,7 +620,7 @@ class JDb(JDbReader):
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
-                    if not n_records > row_id >= 0: continue
+                    if not n_records > row_id >= 0: continue # pragma: no cover
 
                     _key, _f, _o, _s, _v, ver, days = io_read_key(key_fp, row_id)
                     if not max_ver > ver >= min_ver or filter_re and not filter_re.search(_key):
@@ -614,7 +663,11 @@ class JDb(JDbReader):
             # tuple | list | set | dict
             elif hasattr(key, '__iter__'):
                 key_table = io.key_table
-                del_keys = {kk if isinstance(kk, str) else str(kk) for kk in key}.intersection(key_table)
+                if has_childs:
+                    del_keys = {kk if isinstance(kk, str) else str(kk) for kk in key}
+                else:
+                    del_keys = {kk if isinstance(kk, str) else str(kk) for kk in key}.intersection(key_table)
+
                 if not del_keys:
                     return
             else:
@@ -626,10 +679,17 @@ class JDb(JDbReader):
                 f_delete = self.f_delete
                 files_obj = self.files_obj
                 has_SIGINT = self.file_lock.has_SIGINT
+                has_childs = len(io.groups) > 0 or len(self.childs) > 0
                 del_keys = [(key_table[_key], _key) for _key in del_keys]
                 for row_id,_key in sorted(del_keys, reverse=True):
-                    if has_SIGINT() or row_id < 0:
+                    if has_SIGINT():
                         break
+
+                    if row_id < 0:
+                        if has_childs and _key.find(SEP_SYM) >= 0: # pylint: disable=R
+                            del self[_key]
+
+                        continue
 
                     jdb = f_delete(fp, _key, read_value=False, row=row_id)
                     if isinstance(jdb, JDb) and files_obj.is_group(jdb.files_obj.get_KEY(), _key):
