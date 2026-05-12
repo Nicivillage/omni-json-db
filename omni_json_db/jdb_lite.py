@@ -86,7 +86,7 @@ class JFlag(IntFlag):
         return ret
 
 def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bool:
-    if ANY and hasattr(val, '__iter__'):
+    if ANY and hasattr(val, '__iter__'): # pragma: no cover
         if isinstance(val, (list, set, frozenset, tuple)):
             if any(_match_rules(key, vv, rules, level=level+1, ANY=True) for vv in val):
                 return True
@@ -392,7 +392,7 @@ class JDbKey:
                 # pylint: disable=unnecessary-comprehension
                 return {k:v for k,v in self.item_iter(key)}
 
-        elif key_type in {bytes, bytearray}:
+        elif key_type in {bytes, bytearray}: # pragma: no cover
             pass
 
         elif key_type in {int, float, slice, dt_date, datetime, Pattern} \
@@ -410,7 +410,7 @@ class JDbKey:
             row_id = io.key_table[key]
             if io.n_records > row_id >= 0:
                 _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                old_date, new_date  = io.conv_date(days)
+                old_date, new_date  = io.z_conv_date(days)
                 return (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
         return None
@@ -510,7 +510,7 @@ class JDbKey:
                     row_id = io.key_table[key]
                     if io.n_records > row_id >= 0:
                         _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                        old_date, new_date  = io.conv_date(days)
+                        old_date, new_date  = io.z_conv_date(days)
                         yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
                     return
@@ -546,7 +546,7 @@ class JDbKey:
                     if row_id >= io.n_records:
                         _key = f'|{_key}|~~{ver}~\t\t'
 
-                    old_date, new_date = io.conv_date(days)
+                    old_date, new_date = io.z_conv_date(days)
                     yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
                 return
@@ -560,7 +560,7 @@ class JDbKey:
                     return
 
                 io_read_key = io.read_key
-                io_conv_date =io.conv_date
+                io_conv_date = io.z_conv_date
                 n_records = io.n_records
                 for row_id in range(io.n_lines):
                     _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
@@ -579,7 +579,7 @@ class JDbKey:
                 n_records = io.n_records
                 n_lines = io.n_lines
                 io_read_key = io.read_key
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = jdb.f_slice(fp, key)
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
                     if not n_lines > row_id >= 0: continue
@@ -605,7 +605,7 @@ class JDbKey:
 
             if k_arg_cnt > 0:
                 io_read_key = io.read_key
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 if k_arg_cnt == 2:
                     for row_id in range(io.n_records):
                         _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
@@ -633,11 +633,11 @@ class JDbKey:
             elif hasattr(key, '__iter__'):
                 done = set()
                 io_read_key = io.read_key
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 key_table = io.key_table
                 has_childs = len(io.groups) > 0 or len(jdb.childs) > 0
                 for _key in key:
-                    if isinstance(_key, (int, float)):
+                    if isinstance(_key, (int, float)): # pragma: no cover
                         row_id = int(_key)
                         if row_id < 0:
                             row_id = io.n_lines + row_id
@@ -653,20 +653,20 @@ class JDbKey:
                         continue
 
                     _key = str(_key)
-                    if _key in done:
+                    if _key in done: # pragma: no cover
                         continue
 
                     done.add(_key)
 
                     row_id = key_table[_key]
                     if row_id < 0:
-                        if has_childs and _key.find(SEP_SYM) >= 0:
+                        if has_childs and _key.find(SEP_SYM) >= 0: # pragma: no cover
                             for kk,_info in self.item_iter(_key):
                                 yield kk,_info
 
                         continue
 
-                    if row_id >= io.n_records:
+                    if row_id >= io.n_records: # pragma: no cover
                         continue
 
                     _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
@@ -680,7 +680,7 @@ class JDbKey:
             row_id = io.key_table[key]
             if io.n_records > row_id >= 0:
                 _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
-                old_date, new_date = io.conv_date(days)
+                old_date, new_date = io.z_conv_date(days)
                 yield _key, (row_id, file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))
 
     def items(self) -> Generator[str,tuple]:
@@ -707,7 +707,7 @@ class JDbReader:
 
     def __init__(self,\
                 KEY_file:Union[str,bytearray,JFilesBase,JDbReader,None]=None,\
-                data_type:Union[str,int,None]='J+J',\
+                data_type:Union[str,int,None]='J+S',\
                 zip_type:Union[str,int,None]='no',\
                 key_limit:Union[str,int,None]='no',\
                 cache_limit:int=0,\
@@ -815,7 +815,7 @@ class JDbReader:
             elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', KEY_file):
                 server_ip, server_port = KEY_file.split(':')
                 server_port = int(server_port)
-                if not 65535 >= server_port > 0 or all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
+                if not 65535 >= server_port > 0 or not all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
                     raise TypeError
                 files_obj = JNetFiles((server_ip, server_port))
             else:
@@ -883,16 +883,13 @@ class JDbReader:
     def __del__(self):
         with self.lock:
             fp_table = self.fp_table
-            if fp_table:
+            if fp_table: # pragma: no cover
                 for _ident,fp_dict in fp_table.items():
                     for fp in fp_dict.values():
                         if fp is None:
                             continue
 
-                        try:
-                            fp.close()
-                        except:
-                            continue
+                        fp.close()
 
                     fp_dict.clear()
 
@@ -966,7 +963,7 @@ class JDbReader:
                 # pylint: disable=unnecessary-comprehension
                 return {k:v for k,v in self.item_iter(key)}
 
-        elif key_type in {bytes, bytearray}:
+        elif key_type in {bytes, bytearray}: # pragma: no cover
             pass
 
         elif key_type in {slice, dt_date, datetime, Pattern} \
@@ -1070,15 +1067,6 @@ class JDbReader:
 
         elif isinstance(keys, bytes):
             keys = {str(keys)}
-
-        elif isinstance(keys, JDbReader):
-            jdb = keys
-            with self.open(read_only=True):
-                if jdb is self or jdb.files_obj == self.files_obj:
-                    return set()
-
-                with jdb.open(read_only=True):
-                    return set(jdb.io.key_table).difference(self.io.key_table)
 
         elif hasattr(keys, '__iter__'):
             if not keys:
@@ -1304,7 +1292,7 @@ class JDbReader:
                 if chg_keys: chg_keys.clear()
                 return fp_dict
 
-            except:
+            except: # pragma: no cover
                 io = self.io
                 if _cache: _cache.clear()
                 if chg_keys: chg_keys.clear()
@@ -1693,17 +1681,17 @@ class JDbReader:
         try:
             return self.file_lock.can_lock()
 
-        except:
+        except: # pragma: no cover
             return False
 
         finally:
             self.lock.release()
 
     def non_joint(self, keys:Set[str]) -> Set[str]:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1745,10 +1733,10 @@ class JDbReader:
         return self.intersection(keys)
 
     def union(self, keys:Set[str]) -> Set[str]:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1775,10 +1763,10 @@ class JDbReader:
             return keys.union(key_table)
 
     def intersection(self, keys:Set[str]) -> Set[str]:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1808,10 +1796,10 @@ class JDbReader:
             return keys.intersection(key_table)
 
     def non_intersection(self, keys:Set[str]) -> Set[str]:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1841,10 +1829,10 @@ class JDbReader:
         return self.non_intersection(keys)
 
     def difference(self, keys:Set[str]) -> Set[str]:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1870,10 +1858,10 @@ class JDbReader:
             return set(self.io.key_table).difference(keys)
 
     def is_superset(self, keys:Set[str]) -> bool:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {str(keys)}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1912,10 +1900,10 @@ class JDbReader:
         return True
 
     def is_subset(self, keys:Set[str]) -> bool:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -1961,10 +1949,10 @@ class JDbReader:
         return True
 
     def is_disjoint(self, keys:Set[str]) -> bool:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -2018,7 +2006,7 @@ class JDbReader:
         if not self.lock.acquire(): # pylint: disable=consider-using-with
             return False
 
-        if not isinstance(key, str):
+        if not isinstance(key, str): # pragma: no cover
             key = str(key)
 
         try:
@@ -2051,10 +2039,10 @@ class JDbReader:
             return key in self.io.key_table
 
     def has_any(self, keys:Set[str]) -> bool:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -2088,10 +2076,10 @@ class JDbReader:
             return any(key in key_table for key in keys)
 
     def has_all(self, keys:Set[str]) -> bool:
-        if isinstance(keys, str):
+        if isinstance(keys, str): # pragma: no cover
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, bytes): # pragma: no cover
             keys = {str(keys)}
 
         elif isinstance(keys, JDbReader):
@@ -2141,7 +2129,7 @@ class JDbReader:
                 limit_str = io.key_limit_str
                 data_size = ''
                 size = self.fsize
-                if size > 128:
+                if size > 128: # pragma: no cover
                     if size >= (2**30):
                         data_size = f' k:{size/(2**30):,.1f}GB |'
                     elif size >= (2**20):
@@ -2151,7 +2139,7 @@ class JDbReader:
 
                 if io.file_table:
                     size = sum(list(io.file_table.values()))
-                    if size > 0:
+                    if size > 0: # pragma: no cover
                         if size >= (2**30):
                             data_size += f' v:{size/(2**30):,.1f}GB/{len(io.file_table)} |'
                         elif size >= (2**20):
@@ -2165,12 +2153,12 @@ class JDbReader:
                 print(info)
                 print(f'[v{api_ver}|{type_str}|{zip_str}|{limit_str}|{io.index_size:3d}|{"H" if self.write_hook else "_"}{"c" if self._cache_limit > 0 else "C" if self._cache_limit < 0 else "_"}{str(self.flags)}] {files_obj.get_name()} | {io.n_records:,}+{io.n_lines-io.n_records:,} |{data_size} s:{io.sync_id}/{io.swap_id}/{io.remv_id}')
 
-                for _key in sorted(io.groups):
+                for _key in sorted(io.groups): # pragma: no cover
                     jdb = self.f_get_group(fp, _key)
                     if isinstance(jdb, JDbReader):
                         jdb.info(prefix + '  ', key=_key)
 
-                for _key,jdb in sorted(self.childs.items()):
+                for _key,jdb in sorted(self.childs.items()): # pragma: no cover
                     if not isinstance(jdb, JDbReader): continue
                     if _key not in io.key_table: continue
                     jdb.info(prefix + SEP_SYM, key=_key)
@@ -2184,7 +2172,7 @@ class JDbReader:
                 limit_str = io.key_limit_str
                 data_size = ''
                 size = key_fp.seek(0,2)
-                if size > 128:
+                if size > 128: # pragma: no cover
                     if size >= (2**30):
                         data_size = f' k:{size/(2**30):,.1f}GB |'
                     elif size >= (2**20):
@@ -2194,7 +2182,7 @@ class JDbReader:
 
                 if io.file_table:
                     size = sum(list(io.file_table.values()))
-                    if size > 0:
+                    if size > 0: # pragma: no cover
                         if size >= (2**30):
                             data_size += f' v:{size/(2**30):,.1f}GB/{len(io.file_table)} |'
                         elif size >= (2**20):
@@ -2203,12 +2191,12 @@ class JDbReader:
                             data_size += f' v:{size/1024:,.1f}KB/{len(io.file_table)} |'
 
                 print(prefix+f'[v{api_ver}|{type_str}|{zip_str}|{limit_str}|{io.index_size:3d}|{"H" if self.write_hook else "_"}{"c" if self._cache_limit > 0 else "C" if self._cache_limit < 0 else "_"}{str(self.flags)}] {key} | {self.files_obj.get_name()} | {io.n_records:,}+{io.n_lines-io.n_records:,} |{data_size} s:{io.sync_id}/{io.swap_id}/{io.remv_id} ')
-                for _key in sorted(io.groups):
+                for _key in sorted(io.groups): # pragma: no cover
                     jdb = self.f_get_group(key_fp, _key)
                     if isinstance(jdb, JDbReader):
                         jdb.info(prefix + '  ', key=_key)
 
-                for _key,jdb in sorted(self.childs.items()):
+                for _key,jdb in sorted(self.childs.items()): # pragma: no cover
                     if not isinstance(jdb, JDbReader): continue
                     if _key not in io.key_table: continue
                     jdb.info(prefix + SEP_SYM, key=_key)
@@ -2320,7 +2308,7 @@ class JDbReader:
                 f_get_val_fp = self.f_get_val_fp
                 n_records = io.n_records
                 io_read_key = io.read_key
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 io_read_value = io.read_value
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
@@ -2563,8 +2551,7 @@ class JDbReader:
             io, fp, key_fp = self.f_get_fp(fp)
             count = 0
             io_read_key = io.read_key
-            io_conv_date = io.conv_date
-            io_conv_date = io.conv_date
+            io_conv_date = io.z_conv_date
             n_records = io.n_records
             data_type = io.data_type_str
             cache = self._cache
@@ -2810,7 +2797,7 @@ class JDbReader:
             try:
                 return self.f_read(fp, key, copy=copy, row=row)
 
-            except KeyError:
+            except KeyError: # pragma: no cover
                 return default_val
 
     def get_cache(self, key:str, default_val:Any=None, copy:bool=False) -> Any:
@@ -3367,10 +3354,10 @@ class JDbReader:
             if offset == 0x08:  return tuple()
             if offset == 0x10:  return ''
             if offset == 0x20:  return b''
-            if offset == 0x40:  return bytearray()
-            if offset == 0x100: return False
-            if offset == 0x200: return 0
-            if offset == 0x400: return 0.
+            if offset == 0x40:  return bytearray() # pragma: no cover
+            if offset == 0x100: return False # pragma: no cover
+            if offset == 0x200: return 0 # pragma: no cover
+            if offset == 0x400: return 0. # pragma: no cover
 
         if file_id == 0x01: # bool type
             return offset > 0

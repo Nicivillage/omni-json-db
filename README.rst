@@ -16,7 +16,11 @@
 
 ✨ Introduction
 ***************
-``omni-json-db`` is a high-performance, embedded database engine designed for Python developers who need the speed of a Key-Value store with the querying power of a document database. Built for extreme throughput and thread-safety, ``omni-json-db`` leverages modern serialization (``json``, ``msgpack``, ``marshal``, ``pickle``) and compression to provide a storage layer that is often significantly faster than SQLite for JSON-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, ``omni-json-db`` provides the tools to handle data at scale with "Zero-Config" simplicity.
+``omni-json-db`` is a high-performance, embedded database engine designed for Python developers. It bridges the gap between the extreme speed of a Key-Value store and the powerful querying capabilities of a Document database. 
+
+Built for extreme throughput and thread-safety, ``omni-json-db`` leverages modern serialization (``json``, ``msgpack``, ``marshal``, ``pickle``) and compression to provide a storage layer that is often significantly faster than SQLite for JSON-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, ``omni-json-db`` provides the tools to handle data at scale with "Zero-Config" simplicity.
+
+Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use native Python syntax (slicing, Lambdas, Regex, Set operations) to query and manipulate data. It also features built-in "Time-Travel", state rollbacks (Undo/Redo), and extreme compression capabilities.
 
 * **Schema-LESS**: Store complex, nested data without pre-defining tables.
 
@@ -26,25 +30,28 @@
 
 🚀 Features
 ***********
-* **Extreme Performance**: Leverages ``orjson`` and ``ormsgpack`` for serialization. [refer to `Supported Data Formats`_]
+* **Deeply Pythonic**: Forget SQL! Interact with your database using standard Python ``dict`` methods, slicing, and even ``set`` operations. [refer to `Basic`_ + `Operator`_]
 
-* **Concurrency Control**: Optimized for Many-Read / Single-Write environments using a robust file-locking and Lock mechanism.
+* **Dynamic Serialization & Advanced Compression**: Mix and match JSON(``orjson``), MsgPack(``ormsgpack``), Marshal, and Pickle with advanced compression algorithms like LZ4, Zstandard (z1/z2/zs), Brotli, and Bzip2 to perfectly balance I/O speed and disk footprint. [refer to `Supported Data Formats`_ + `Supported Zip Formats`_]
 
-* **Advanced Compression**: Supports LZ4 (speed-focused), Zstandard (balanced), and Brotli (size-focused) to minimize storage footprint. [refer to `Supported Zip Formats`_]
-
-* **Powerful Querying**: Search using Regular Expressions (RE), Lambda filters, or modification timestamps (Time-Travel query). [refer to `Query`_]
+* **Powerful Query Engine**: Powerful Query Engine: Search effortlessly using Regular Expressions (Regex), Lambda filters (``jdb[lambda k, v: v > 10]``), and rich condition operators (``EQ``, ``GT``, ``LT``, ``IN``, ``HAS``, ``RE``). [refer to `Query`_]
 
 * **Memory Caching**: Adjustable cache_limit to balance RAM usage and I/O speed. [refer to `Supported Key Table Formats`_]
 
-* **Network Mode** (``JNetFiles``): Transform a local ``omni-json-db`` instance into a networked service with a single command using run_files_server. [refer to `Network`_]
+* **Network Mode** (``JNetFiles``): Transform a local ``omni-json-db`` instance into a networked service with a single command using ``run_files_server()``. [refer to `Network`_]
 
 * **In-Memory Mode** (``JMemFiles``): Run the entire database in RAM for extreme performance (ideal for real-time caches or volatile session storage). [refer to `In-memory`_]
 
-* **Revertable**: Unlike traditional NoSQL stores, ``omni-json-db`` tracks internal states allowing you to unwrite (rollback a modification) or undelete a record. This provides a safety net similar to a manual "Undo" or a lightweight ACID rollback. [refer to `Rollback`_, `Backup & Restore`_]
+* **"Time-Travel" & Rollbacks**: The database tracks internal states, allowing you to undo modifications (``unmodify()``) or recover deleted data (``unremove()``). Accidentally deleted a record? One line of code brings it back. [refer to `Rollback`_ + `Backup & Restore`_]
 
-* **Native CSV Support**: Built-in hooks for DictReader and DictWriter allow you to import massive datasets from CSV files or export your ``omni-json-db`` collections for analysis in Excel or Pandas. [refer to `CSV`_]
+* **Native CSV Support**: Built-in hooks for ``DictReader`` and ``DictWriter`` allow you to import massive datasets from CSV files or export your ``omni-json-db`` collections for analysis in Excel or Pandas. [refer to `CSV`_]
 
-* **Date-Based Lookups**: Every record is timestamped, enabling queries like "Give me all users modified last Tuesday." [refer to `Date Lookups`_]
+* **Time-Series Support:**: Every record is timestamped, unlocking powerful date-based slicing. For example, grab all records modified since yesterday with ``jdb[yesterday:now]``. [refer to `Date Lookups`_]
+
+* **Grouping & Namespaces**: Easily isolate and manage different data modules using groups. [refer to `Group`_]
+
+* **Concurrency Control**: Optimized for Many-Read / Single-Write environments using a robust file-locking and Lock mechanism. [refer to `Advanced`_]
+
 
 📌 Supported Python Versions
 ****************************
@@ -68,7 +75,7 @@ Basic
 
    from omni_json_db import JDb
    # Initialize the database from file
-   # Key-Value is Json+Json without compression
+   # Key-Value is Json+mSgpack without compression
    jdb = JDb("example.jdb")
 
    # Store data
@@ -87,6 +94,7 @@ In-memory
 
    from omni_json_db import JDb
    # Initialize the database in memory
+   # Key-Value is Json+mSgpack without compression
    jdb1 = JDb()
 
    # Store data
@@ -114,15 +122,22 @@ Rollback
    # Key-Value is Json+Pickle with zstandard compression
    jdb = JDb("fruit.jdb", data_type="J+P", zip_type='zs')
 
+   # add key
    jdb["apple"] = "red"
-   jdb["apple"] = "blue" # modify
-   jdb.revert("apple") # unmodify
+
+   # modify key
+   jdb["apple"] = "blue" 
+
+   # unmodify key (equivalent to jdb.unmodify())
+   jdb.revert("apple")
    assert jdb["apple"] == 'red'
 
+   # remove key
    del jdb["apple"] 
    assert "apple" not in jdb
 
-   jdb.revert("apple") # unremove
+   # unremove key (equivalent to jdb.unremove())
+   jdb.revert("apple")
    assert jdb["apple"] == "red"
 
 Backup & Restore
@@ -132,7 +147,7 @@ Backup & Restore
 
    from omni_json_db import JDb
    # Initialize the database from file
-   # Key-Value is Msgpack+Json with Bzip2 compression
+   # Key-Value is mSgpack+Json with Bzip2 compression
    jdb = JDb("fruit.jdb", data_type="S+J", zip_type='bz')
 
    # Add fruit to jdb
@@ -178,26 +193,29 @@ Query
    matches = jdb.find(RE='John|Bob')
    print(matches) # {'0': {'name': 'John', 'age': 22}, '1': {'name': 'John', 'age': 37}, '2': {'name': 'Bob', 'age': 42}}   
 
+Condition operators: ``EQ``, ``NE``, ``GT``, ``LT``, ``GE``, ``LE``, ``HAS``, ``RE``, ``RE2``, ``FUNC``, ``AND``, ``OR``, ``NOT`` and ``ANY``.
+
 CSV
 ---
 
 .. code-block:: python
 
    from omni_json_db import JDb
-      
-   jdb1 = JDb()
+   # Initialize the database in memory
+   # Key-Value is Json+Json with no compression      
+   jdb1 = JDb(data_type="J+J")
 
    # insert value without key
    jdb1 += [{'name': 'John', 'age': 22}, {'name': 'John', 'age': 37}, \
             {'name': 'Bob', 'age': 42}, {'name': 'Megan', 'age': 27}]
    
-   # export to CSV file
+   # export the data to CSV
    jdb1.to_csv('example.csv')
 
    # create another JDb in memory
    jdb2 = JDb()
    
-   # import from CSV file
+   # import the data from CSV
    jdb2.from_csv('example.csv')
    print(jdb2.find(RE='Bob')) # Output: {'name': 'Bob', 'age': 42}
 
@@ -207,26 +225,37 @@ Network
 **Server side:**
 
 .. code-block:: python
+   
+   from omni_json_db import JDb, run_files_server   
+   
+   jdb = JDb('storage.jdb')
 
-   >> from omni_json_db import run_files_server
-   >> run_files_server(host='127.0.0.1', port=59898, files='net_storage.jdb')
+   # equivalent to: files='storage.jdb'
+   run_files_server(host='127.0.0.1', port=59898, files=jdb)
+
+   # write key to JDb
+   jdb['remote-key'] = 'secret'
 
 **Client side:**
 
 .. code-block:: python
 
-   >> from omni_json_db import JDb
-   >> jdb = JDb('127.0.0.1:59898')
-   
+   from omni_json_db import JDb
+
+   # connect to files server
+   jdb = JDb('127.0.0.1:59898')
+
+   # read remote key from JDb
+   print(jdb['remote-key']) # Output: secret
+
 Group
 -----
 
 .. code-block:: python
 
    from omni_json_db import JDb
-
    # Initialize the database from file
-   # Key-Value is Json+Json with no compression
+   # Key-Value is Json+mSgpack with no compression
    jdb = JDb('fruit_group.jdb')
 
    # add red group
@@ -259,7 +288,7 @@ Operator
 
    from omni_json_db import JDb
    # Initialize the database in memory
-   # Key+Value is Msgpack+Msgpack with lz4 compression
+   # Key+Value is mSgpack+mSgpack with lz4 compression
    jdb = JDb(data_type="S+S(lz)")
 
    # [1] KEY+VAL operators
@@ -276,7 +305,7 @@ Operator
    assert len(jdb) == 102
    assert jdb['key100'] == 101
    assert jdb[-2.:] == {'key100':101, 'key101':102} # get last two modified records
-   assert jdb[(f'key{v}' for v in range(100))] == data # same as jdb[data] == data
+   assert jdb[(f'key{v}' for v in range(100))] == data # equivalent to jdb[data] == data
 
    # <jdb -= ..> == jdb.remove(..)
    jdb -= ['key100', 'key101', 'key102', 'key103']
@@ -289,7 +318,7 @@ Operator
    assert jdb == {f'key{v}':v+1 for v in range(100)}
 
    # <jdb ^= ..> == jdb.unmodify(..)
-   jdb ^= {f'key{v}' for v in range(100)} # same as jdb ^= data
+   jdb ^= {f'key{v}' for v in range(100)} # equivalent to jdb ^= data
    assert len(jdb) == 100
    assert jdb == data
 
@@ -300,11 +329,11 @@ Operator
    assert jdb.find(NE=0) == {}
 
    # remove all records
-   jdb -= jdb # same as del jdb[:]
+   jdb -= jdb # equivalent to del jdb[:]
    assert len(jdb) == 0
 
    # <jdb ^= ..> == jdb.unremove(..)
-   jdb ^= {f'key{v}' for v in range(100)} # same as jdb ^= data
+   jdb ^= {f'key{v}' for v in range(100)} # equivalent to jdb ^= data
    assert len(jdb) == 100
    assert all(val == 0 for key,val in jdb.items())
 
@@ -313,7 +342,7 @@ Operator
    assert jdb == data
 
    # <del jdb[..]> == jdb.remove_fast(..)
-   del jdb[data] # same as del jdb[:]
+   del jdb[data] # equivalent to del jdb[:]
    assert len(jdb) == 0
 
    # unremove all data
@@ -407,9 +436,9 @@ Date Lookups
    import datetime as dt
 
    # Initialize the database in memory
-   # Key+Value is Json+Msgpack with Brotli compression
+   # Key+Value is Json+Json with Brotli compression
    # using BTree as Key Table for better memory usage
-   jdb = JDb(data_type="J+S(br)", key_limit="bt")
+   jdb = JDb(data_type="J+J(br)", key_limit="bt")
 
    # insert data
    fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}
@@ -482,7 +511,8 @@ Advanced
 .. code-block:: python
 
    from omni_json_db import JDb
-   
+   # Initialize the database in memory
+   # Key-Value is Json+mSgpack with no compression
    jdb = JDb()
 
    fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}
@@ -571,8 +601,8 @@ Supported Data Formats
 
 Configure ``data_type`` during initialization:
 
-* ``J+J``: JSON Key + JSON Value (default)
-* ``J+S``: JSON Key + MsgPack Value
+* ``J+J``: JSON Key + JSON Value
+* ``J+S``: JSON Key + MsgPack Value (default)
 * ``J+M``: JSON Key + Marshal Value
 * ``J+P``: JSON Key + Pickle Value
 * ``S+J``: MsgPack Key + JSON Value
@@ -582,26 +612,30 @@ Configure ``data_type`` during initialization:
 
 **Data size = 70,840,580 (MB = 1,000,000B, no zip)**
 
-+-------------------+------------+-------+----------+-----------+----------------+---------------+
-| ``data_type``     | size       | ratio | read     | write     | GOODs          | BADs          |
-+===================+============+=======+==========+===========+================+===============+
-| ``J+J`` or ``S+J``| 70,840,580 | 1.00  | 75.3MB/s | 358.0MB/s |* fastest write |* no set()     |
-|                   |            |       |          |           |* faster read   |* no tuple()   |
-|                   |            |       |          |           |* readable      |* weak bytes   |
-+-------------------+------------+-------+----------+-----------+----------------+---------------+
-| ``J+S`` or ``S+S``| 47,616,008 | 1.48  | 77.4MB/s | 354.2MB/s |* smallest size |* no tuple()   |
-|                   |            |       |          |           |* faster read   |* unreadable   |
-|                   |            |       |          |           |* faster write  |               |
-+-------------------+------------+-------+----------+-----------+----------------+---------------+
-| ``J+M`` or ``S+M``| 72,430,958 | 0.97  | 81.4MB/s | 177.1MB/s |* all type [1]_ |* biggest size |
-|                   |            |       |          |           |* fastest read  |* unreadable   |
-+-------------------+------------+-------+----------+-----------+----------------+---------------+
-| ``J+P`` or ``S+P``| 70,207,207 | 1.01  | 64.9MB/s | 22.8MB/s  |* all type [1]_ |* slowest read |
-|                   |            |       |          |           |                |* slowest write|
-|                   |            |       |          |           |                |* unreadable   |
-+-------------------+------------+-------+----------+-----------+----------------+---------------+
++-------------------+------------+-------+----------+-----------+----------------+------------------+
+| ``data_type``     | size       | ratio | read     | write     | GOODs          | BADs             |
++===================+============+=======+==========+===========+================+==================+
+| ``J+J`` or ``S+J``| 70,840,580 | 1.00  | 75.3MB/s | 358.0MB/s |* fastest write |* no set [a]_     |
+|                   |            |       |          |           |* faster read   |* no tuple [a]_   |
+|                   |            |       |          |           |* readable      |* weak bytes [b]_ |
+|                   |            |       |          |           |                |* weak dict [c]_  |
++-------------------+------------+-------+----------+-----------+----------------+------------------+
+| ``J+S`` or ``S+S``| 47,616,008 | 1.48  | 77.4MB/s | 354.2MB/s |* smallest size |* no tuple [a]_   |
+|                   |            |       |          |           |* faster read   |* unreadable      |
+|                   |            |       |          |           |* faster write  |                  |
++-------------------+------------+-------+----------+-----------+----------------+------------------+
+| ``J+M`` or ``S+M``| 72,430,958 | 0.97  | 81.4MB/s | 177.1MB/s |* all type [d]_ |* biggest size    |
+|                   |            |       |          |           |* fastest read  |* unreadable      |
++-------------------+------------+-------+----------+-----------+----------------+------------------+
+| ``J+P`` or ``S+P``| 70,207,207 | 1.01  | 64.9MB/s | 22.8MB/s  |* all type [d]_ |* slowest read    |
+|                   |            |       |          |           |                |* slowest write   |
+|                   |            |       |          |           |                |* unreadable      |
++-------------------+------------+-------+----------+-----------+----------------+------------------+
 
-.. [1] all type = ``str``, ``bytes``, ``bool``, ``int``, ``float``, ``list``, ``tuple``, ``set``, ``dict``, ``None``
+.. [a] convert to ``list``
+.. [b] convert to hex string
+.. [c] only support string key
+.. [d] all type = ``str``, ``bytes``, ``bool``, ``int``, ``float``, ``list``, ``tuple``, ``set``, ``dict``, ``None``
 
 Supported Zip Formats
 ---------------------

@@ -5,6 +5,7 @@ Provides rapid JSON and MsgPack serialization with robust concurrency controls
 for many-read single-write multithreading/multiprocessing environments.
 """
 from threading import Thread
+from socketserver import TCPServer
 from typing import Union, Optional, Any
 from re import match as re_match
 from .jdb import JDb
@@ -18,7 +19,7 @@ __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
 __description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.09.01'
+__version__         = '2.09.02'
 
 __all__ = [
     'JDb',
@@ -36,7 +37,7 @@ __all__ = [
 loads = JDb.z_loads
 dumps = JDb.z_dumps
 
-def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytearray,JFilesBase,JDbReader,None]=None, daemon:bool=False, verbose:int=0) -> Optional[Thread]: # pragma: no cover
+def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytearray,JFilesBase,JDbReader,None]=None, verbose:int=0) -> TCPServer:
     """
     Initializes and runs a multi-threaded TCP server to expose the JDb object.
     
@@ -51,7 +52,6 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
             > [JNetFiles] network files object for JDb
             > [JDbReader] JDb files object
             > [default=None] JMemFiles()       
-        daemon (bool, optional): True = run in background
         verbose (int, optional): Logging level (-ve: off, 0: limit, 1: err, 4: debug).
             > -ve = disable
             > 0~4 = enable
@@ -61,8 +61,7 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
                 > 3=INFO
                 > 4=DEBUG
     Return:
-        None: if daemon == False
-        Thread object: if daemon = True
+        TCPServer
 
     Raises:
         TypeError: If the provided `files` parameter is invalid.    
@@ -92,15 +91,10 @@ def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytea
         raise TypeError
 
     print(f'staring server at {host}:{port} -> {files_obj} (files={type(files)})')
-    def _run_server(host:str, port:int, files_obj:Any, verbose:int=verbose):
-        with ThreadedTCPServer((host, port), ServerHandler, files_obj=files_obj, verbose=verbose) as server:
-            server.serve_forever()
+    server = ThreadedTCPServer((host, port), ServerHandler, files_obj=files_obj, verbose=verbose)
+    if server:
+        thd = Thread(target=server.serve_forever, daemon=True)
+        thd.start()
 
-    if not daemon:
-        _run_server(host, port, files_obj, verbose)
-        return None
-
-    thd = Thread(target=_run_server, args=(host, port, files_obj, verbose), daemon=True)
-    thd.start()
-    return thd
+    return server
 #

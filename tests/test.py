@@ -1,10 +1,7 @@
 # pylint: disable=too-many-lines, multiple-imports
 import unittest, time, random, threading, inspect, re, os
 import datetime as dt
-from omni_json_db import JDb, JDbReader, JMemFiles, JFlag, JNetFiles, JDiskFiles, run_files_server
-
-server_thd1 = run_files_server('127.0.0.1', 59898, files='db/test_3n.jdb', verbose=0, daemon=True)
-server_thd2 = run_files_server('127.0.0.1', 59899, files=None, verbose=0, daemon=True)
+from omni_json_db import JDb, JDbReader, JMemFiles, JFlag, JNetFiles, JDiskFiles, run_files_server, loads, dumps
 
 _g_basetime = time.perf_counter()
 def Style(msg, bold=None, dim=None, smso=None, underscore=None, blink=None, reverse=None, hidden=None, bright=None, fg=None, black=None, red=None, green=None, yellow=None, blue=None, magenta=None, cyan=None, white=None, bg=None, bg_black=None, bg_red=None, bg_green=None, bg_yellow=None, bg_blue=None, bg_magenta=None, bg_cyan=None, bg_white=None):
@@ -177,6 +174,8 @@ class TestJDb(unittest.TestCase):
             {'KEY_file':'db/test_x10lz.jdb', 'api_ver':1, 'data_type':'S+P', 'zip_type':'lz', 'max_file_size' :     None, 'reserved_rate': 0.2, 'cache_limit':-1, 'min_value_size':128, 'index_size':128, 'key_limit':'l4'},
         ]
 
+        self.server1 = run_files_server('127.0.0.1', 59898, files='db/test_3n.jdb', verbose=0)
+        self.server2 = run_files_server('127.0.0.1', 59899, files=None, verbose=0)
         self.jdbs = {}
         for config in self.jdb_configs:
             filename = config['KEY_file']
@@ -234,6 +233,11 @@ class TestJDb(unittest.TestCase):
                     self.assertTrue(jdb.n_lines == jdb.n_records == 0)
 
             print(Style(f'Down {filename} {jdb} rate:{jdb.reserved_rate*100.:.1f}%', blue=1))
+
+        for server in (self.server1, self.server2):
+            if not server: continue
+            server.shutdown()
+            server.server_close()
 
     def test_group_key(self):
         for config in self.jdb_configs:
@@ -1201,9 +1205,9 @@ class TestJDb(unittest.TestCase):
                 _data = jdb.z_loads(jdb[_key], ret_type=_key[0])
                 self.assertEqual(_data, data)
 
-            jmem = JDb()
-            data_b = JDb.z_dumps(jdb, jdb.data_type[-1])
-            jmem += JDb.z_loads(data_b, jdb.data_type[-1])
+            jmem = JDb(data_type=jdb.data_type)
+            data_b = dumps(jdb)
+            jmem += loads(data_b, jdb.data_type[-1])
             self.assertEqual(jmem, jdb)
 
             val = jdb.set('value1', lambda key,old_val: -1 if old_val is None  else old_val+1)
@@ -1840,9 +1844,13 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(sync_id, jdb.sync_id)
             expect2 = {f'dd{i}' : list(range(i+1)) for i in range(test_size)}
             try:
-                fp = jdb.f_open(read_only=False)
-                for key,val in expect2.items():
-                    jdb.f_write(fp, key, val)
+                fp1 = jdb.f_open(read_only=True)
+                try:
+                    fp2 = jdb.f_open(read_only=False)
+                    for key,val in expect2.items():
+                        jdb.f_write(fp2, key, val)
+                finally:
+                    jdb.f_close()
             finally:
                 jdb.f_close()
 
@@ -2150,9 +2158,13 @@ class TestJDb(unittest.TestCase):
             print(Style(f'Testing {filename} {jdb} rate:{jdb.reserved_rate*100.:.1f}% cache:{cache_limit}', yellow=1))
 
             # --------------------------------------------
-            jdb1 = JDb(jdb)
+            jdb.cache_limit = 0
+            jdb.cache_limit = cache_limit
+            
+            jdb1 = JDb(jdb)            
             cache_id = id(jdb._cache)
             sync_id = jdb.sync_id
+
             test_size = 100
             expect = {f'kkk{i}' : list(range(i+1)) for i in range(test_size)}
             chg = jdb.insert(expect)
@@ -3572,6 +3584,9 @@ class TestJDb(unittest.TestCase):
             with jdb2.open(read_only=True) as fp:
                 with jdb2.f_switch(fp, read_only=False) as fp2:
                     self.assertTrue(fp is fp2)
+                    ret = jdb2.f_rename(fp2, 'kkkk1', 'kkkk1')
+                    self.assertFalse(ret)
+
                     ret = jdb2.f_rename(fp2, 'kkkk1', 'xxx1')
                     self.assertTrue(ret)
 
@@ -4480,8 +4495,8 @@ class TestJDb(unittest.TestCase):
             # --------------------------------------------
             jdb1 = JDb(jdb)
 
-            _now = jdb.io.conv_days(now.timestamp())
-            _old_date = jdb.io.conv_days(old_date.timestamp())
+            _now = jdb.io.z_conv_days(now.timestamp())
+            _old_date = jdb.io.z_conv_days(old_date.timestamp())
             self.assertEqual(_old_date + 10, _now)
 
             _today = dt.date.today()
@@ -4660,14 +4675,60 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(info2[-1], '1900-10-10')
             self.assertEqual(info2[-2], '2000-01-01')
 
+            jdb.keys['kk3'] = '1900-10-10 2000-1-1'
+            info2 = jdb.keys['kk3']
+            self.assertEqual(info2[-1], '1900-10-10')
+            self.assertEqual(info2[-2], '2000-01-01')
+
+            today = dt.date.today()
+            jdb.keys['kk3'] = today
+            info2 = jdb.keys['kk3']
+            self.assertEqual(info2[-1], str(today))
+            self.assertEqual(info2[-2], str(today))
+
+            today2 = dt.datetime.now()
+            jdb.keys['kk3'] = today2
+            info2 = jdb.keys['kk3']
+            self.assertEqual(info2[-1], str(today))
+            self.assertEqual(info2[-2], str(today))
+
             jdb.keys['kk3'] = -1
             info2 = jdb.keys['kk3']
-            self.assertEqual(info2[-1], str(dt.date.today()))
-            self.assertEqual(info2[-2], str(dt.date.today()))
+            self.assertEqual(info2[-1], str(today))
+            self.assertEqual(info2[-2], str(today))
             info3 = dict(jdb.keys.item_iter('kk3'))
             self.assertEqual(info2, info3.get('kk3',None))
             for key,val in jdb1.keys.item_iter(slice(None)):
                 self.assertEqual(jdb.keys[key], val)
+
+            jmem = JDb()
+            jmem['group'] = jdb
+            yesterday = today - dt.timedelta(days=1)
+            jmem.keys['group:::kk3'] = yesterday
+            info2 = jdb.keys['kk3']
+            self.assertEqual(info2[-1], str(yesterday))
+            self.assertEqual(info2[-2], str(today))
+
+            jdb.keys['kk4'] = yesterday
+            info2 = jdb.keys['kk4']
+            self.assertEqual(info2[-1], str(yesterday))
+
+            jdb.keys['kk3', 'kk4'] = today
+            for key,info in jdb.keys.item_iter(('kk3', 'kk4')):
+                self.assertEqual(info[-1], str(today))
+
+            jdb.keys[re.compile(r'k[34]$')] = yesterday
+            for key,info in jdb.keys.item_iter(re.compile(r'k[34]$')):
+                self.assertEqual(info[-1], str(yesterday))
+
+            matches = jdb.keys[lambda key,info:info[-1] == str(yesterday)]
+            jdb.keys[lambda key,info:info[-1] == str(yesterday)] = today
+            for key,info in jdb.keys.item_iter(lambda key:key.endswith(('k3', 'k4'))):
+                self.assertEqual(info[-1], str(today))
+
+            jdb.keys[lambda key:key.endswith(('k3', 'k4'))] = yesterday
+            for key,info in jdb.keys.item_iter(('kk3', 'kk4')):
+                self.assertEqual(info[-1], str(yesterday))
 
             jdb.keys[::'kk4'] = '2000-1-1 1900-10-10'
             matches = jdb.keys[::'kk4']
@@ -4675,6 +4736,30 @@ class TestJDb(unittest.TestCase):
             for key,info2 in matches.items():
                 self.assertEqual(info2[-1], '1900-10-10')
                 self.assertEqual(info2[-2], '2000-01-01')
+
+            matches = jdb.keys[1]
+            self.assertTrue(len(matches) == 1)
+            key = list(matches)[0]
+            prev_week = today - dt.timedelta(days=7)
+            jdb.keys[1] = prev_week
+            for key,info in jmem.keys[f'group:::{key}'].items():
+                self.assertEqual(info[-1], str(prev_week))
+
+            matches = jdb.keys[-1.]
+            self.assertTrue(len(matches) >= 1)
+            prev_prev_week = today - dt.timedelta(days=14)
+            jdb.keys[-1.] = f'{prev_prev_week} {prev_prev_week}'
+            for key,info2 in jmem.keys[f'group:::{key}'].items():
+                self.assertEqual(info2[-1], str(prev_prev_week))
+                self.assertEqual(info2[-2], str(prev_prev_week))
+
+            jdb[matches] = lambda k,v : f'{k}_{v.replace("v", "")}'
+            for key,info2 in jdb.keys[matches].items():
+                self.assertEqual(info2[-1], str(prev_prev_week))
+                self.assertEqual(info2[-2], str(today))
+
+            jdb[1] = lambda k,v : f'{k}_{v}'
+            self.assertTrue(jdb[1].startswith(r'1_'))
 
             self.assertEqual(jdb, jdb1)
             self.assertEqual(jdb.keys[:], jdb1.keys[:])

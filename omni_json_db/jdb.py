@@ -1,6 +1,6 @@
 from __future__ import annotations # pylint: disable=too-many-lines
 from datetime import date as dt_date, datetime
-from re import findall as re_findall, match as re_match, Pattern
+from re import match as re_match, Pattern
 from os.path import exists as path_exists
 from os import stat as os_stat
 from time import time, sleep
@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from csv import DictReader, DictWriter
 #-----------------------------------------------------------------------------
 from .jdb_io import JIo, MIN_INDEX_SIZE, VAL_FILE_BUF_SIZE, KEY_FILE_BUF_SIZE,\
-            API_LATEST, CHG_DAY_FLAG, NEW_DAY_MASK, OLD_DAY_MASK, NEW_DAY_SHIFT,\
+            API_LATEST, CHG_DAY_FLAG, NEW_DAY_MASK, OLD_DAY_MASK,\
             g_VAL_J, g_VAL_S, g_VAL_M, g_VAL_P
 from .jdb_lite import JDbReader, JDbKey, JFlag, SEP_SYM, SEP_LEN
 from .utils import Style
@@ -21,28 +21,14 @@ from .jdb_file import JFilesBase
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JDbKey2(JDbKey):
-    def __setitem__(self, key:Union[str,Any], val:Any) -> None:
+    def __setitem__(self, key:Union[str,Any], val:Union[str,int,datetime,dt_date]) -> None:
         jdb = self.jdb
         #pass;0;assert isinstance(jdb, JDb)
-        if isinstance(val, str):
-            _vals = re_findall(r'(\d+)(?=\W|$)', val)
-            if len(_vals) == 3:
-                val = jdb.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-
-            elif len(_vals) == 6:
-                _date_0 = jdb.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-                _date_1 = jdb.io.conv_days(dt_date(*[int(v) for v in _vals[3:6]]))
-                if _date_0 >= _date_1:
-                    val = _date_1 & OLD_DAY_MASK
-                    val |= ((_date_0 - _date_1) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                else:
-                    val = _date_0 & OLD_DAY_MASK
-                    val |= ((_date_1 - _date_0) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-            else:
-                raise ValueError
+        if isinstance(val, str): # pragma: no cover
+            val = JIo.z_conv_str_to_days(val)
 
         elif not isinstance(val, int):
-            val = jdb.io.conv_days(val)
+            val = JIo.z_conv_days(val)
 
         if not isinstance(val, int):
             raise TypeError
@@ -133,7 +119,7 @@ class JDbKey2(JDbKey):
             elif isinstance(key, (slice, dt_date, datetime)):
                 n_records = io.n_records
                 io_read_key = io.read_key
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = jdb.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
                 for row_id in range(new_slice.start, new_slice.stop, new_slice.step):
@@ -160,15 +146,17 @@ class JDbKey2(JDbKey):
 
             elif callable(is_matched):
                 if k_arg_cnt == 2:
+                    io_read_key = io.read_key
+                    io_conv_date = io.z_conv_date
                     for row_id in range(io.n_records):
                         if has_SIGINT():
                             break
 
-                        _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
+                        _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
                         if val == days:
                             continue
 
-                        old_date, new_date = io.conv_date(days)
+                        old_date, new_date = io_conv_date(days)
                         if not is_matched(_key, (file_id, offset, size, vsize, ver, days, str(new_date), str(old_date))):
                             continue
 
@@ -176,6 +164,7 @@ class JDbKey2(JDbKey):
                         io, fp, key_fp = jdb.f_get_fp(fp) # key_fp is changed after switch to write mode
 
                 elif k_arg_cnt == 1:
+                    io_read_key = io.read_key                    
                     for _key,row_id in io.key_table.items():
                         if has_SIGINT():
                             break
@@ -183,7 +172,7 @@ class JDbKey2(JDbKey):
                         if not is_matched(_key):
                             continue
 
-                        _key, file_id, offset, size, vsize, ver, days = io.read_key(key_fp, row_id)
+                        _key, file_id, offset, size, vsize, ver, days = io_read_key(key_fp, row_id)
                         if days == val:
                             continue
 
@@ -228,10 +217,11 @@ class JDbKey2(JDbKey):
                 return
 
             # bytes | bytearray | bool
-            key = str(key)
-            row_id = io.key_table[key]
-            if row_id >= 0:
-                jdb.f_change_days(fp, key, val)
+            if not isinstance(key, str): # pragma: no cover
+                key = str(key)
+                row_id = io.key_table[key]
+                if row_id >= 0:
+                    jdb.f_change_days(fp, key, val)
 
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
@@ -246,7 +236,7 @@ class JDb(JDbReader):
     """
     def __init__(self,\
             KEY_file:Union[str,bytearray,JFilesBase,JDbReader,None]=None,\
-            data_type:Union[str,int,None]='J+J',\
+            data_type:Union[str,int,None]='J+S',\
             zip_type:Union[str,int,None]='no',\
             key_limit:Union[str,int,None]='no',\
             cache_limit:int=0,\
@@ -388,7 +378,7 @@ class JDb(JDbReader):
                 io, fp, key_fp = self.f_get_fp(fp)
                 keys = []
                 n_records = io.n_records
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 io_read_key = io.read_key
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
@@ -576,7 +566,7 @@ class JDb(JDbReader):
             elif isinstance(key, (slice, dt_date, datetime)):
                 io, fp, key_fp = self.f_get_fp(fp)
                 n_records = io.n_records
-                io_conv_date = io.conv_date
+                io_conv_date = io.z_conv_date
                 io_read_key = io.read_key
                 new_slice, max_ver, min_ver, max_date, min_date, filter_re, chk_new_date = self.f_slice(fp, key)
                 chk_date = max_date is not None or min_date is not None
@@ -3113,29 +3103,14 @@ class JDb(JDbReader):
         if not isinstance(key, str):
             key = str(key)
 
-        if isinstance(days, str):
+        if isinstance(days, str): # progma: no cover
             try:
-                _vals = re_findall(r'(\d+)(?=\W|$)', days)
-                if len(_vals) == 3:
-                    days = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-
-                elif len(_vals) == 6:
-                    _date_0 = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-                    _date_1 = self.io.conv_days(dt_date(*[int(v) for v in _vals[3:6]]))
-                    if _date_0 >= _date_1:
-                        days = _date_1 & OLD_DAY_MASK
-                        days |= ((_date_0 - _date_1) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                    else:
-                        days = _date_0 & OLD_DAY_MASK
-                        days |= ((_date_1 - _date_0) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                else:
-                    return False
-
+                days = JIo.z_conv_str_to_days(days)
             except ValueError:
                 return False
 
         elif not isinstance(days, int):
-            days = self.io.conv_days(days)
+            days = JIo.z_conv_days(days)
 
         try:
             io, fp_dict, key_fp, _sync_chg = self.f_get_write_fp(fp_dict)
@@ -3234,24 +3209,9 @@ class JDb(JDbReader):
         return start_line, -1, '', 0, 0, 0
 
     def f_write_bytes(self, fp_dict:Dict[int,IO], key:str, val:bytes, days:int=-1, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> bool:
-        if isinstance(days, str):
+        if isinstance(days, str): # progma: no cover
             try:
-                _vals = re_findall(r'(\d+)(?=\W|$)', days)
-                if len(_vals) == 3:
-                    days = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-
-                elif len(_vals) == 6:
-                    _date_0 = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-                    _date_1 = self.io.conv_days(dt_date(*[int(v) for v in _vals[3:6]]))
-                    if _date_0 >= _date_1:
-                        days = _date_1 & OLD_DAY_MASK
-                        days |= ((_date_0 - _date_1) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                    else:
-                        days = _date_0 & OLD_DAY_MASK
-                        days |= ((_date_1 - _date_0) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                else:
-                    days = -1
-
+                days = JIo.z_conv_str_to_days(days)
             except ValueError:
                 days = -1
 
@@ -3502,22 +3462,7 @@ class JDb(JDbReader):
     def f_write(self, fp_dict:Dict[int,IO], key:str, val:Any, days:int=-1, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> bool:
         if isinstance(days, str):
             try:
-                _vals = re_findall(r'(\d+)(?=\W|$)', days)
-                if len(_vals) == 3:
-                    days = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-
-                elif len(_vals) == 6:
-                    _date_0 = self.io.conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
-                    _date_1 = self.io.conv_days(dt_date(*[int(v) for v in _vals[3:6]]))
-                    if _date_0 >= _date_1:
-                        days = _date_1 & OLD_DAY_MASK
-                        days |= ((_date_0 - _date_1) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                    else:
-                        days = _date_0 & OLD_DAY_MASK
-                        days |= ((_date_1 - _date_0) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
-                else:
-                    days = -1
-
+                days = JIo.z_conv_str_to_days(days)
             except ValueError:
                 days = -1
 
@@ -4280,10 +4225,10 @@ class JDb(JDbReader):
         return old_row, file_id, offset, row_size, val_size
 
     def f_rename(self, fp_dict:Dict[int,IO], key:str, new_key:str) -> bool:
-        if not isinstance(key, str):
+        if not isinstance(key, str): # pragma: no cover
             key = str(key)
 
-        if not isinstance(new_key, str):
+        if not isinstance(new_key, str): # pragma: no cover
             new_key = str(new_key)
 
         if key == new_key:

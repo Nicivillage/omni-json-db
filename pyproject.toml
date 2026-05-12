@@ -7,7 +7,7 @@ exclude = ["artwork", "tests"]
 
 [project]
 name = "omni_json_db"
-version = "2.09.01"
+version = "2.09.02"
 authors = [
 	{ name="Lukatrum", email="lukatrum@gmail.com"}
 ]
@@ -96,3 +96,4 @@ license-files = ["LICEN[CS]E*"]
 "Homepage" = "https://github.com/lukatrum"
 "Repository" = "https://github.com/lukatrum/omni-json-db"
 "Bug Tracker" = "https://github.com/lukatrum/omni-json-db/issues"
+"Wiki" = "https://github.com/Lukatrum/omni-json-db/wiki"

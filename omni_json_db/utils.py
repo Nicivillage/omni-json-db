@@ -2,7 +2,6 @@ from collections import defaultdict
 from contextlib import contextmanager
 from time import perf_counter
 from threading import Lock, Event, Condition, get_ident
-from random import random
 from signal import SIGINT, signal, default_int_handler # SIG_IGN
 # from typing import Union, Optional
 #-----------------------------------------------------------------------------
@@ -265,7 +264,7 @@ class FileLock:
             while self._mode != 'x':
                 try:
                     if wait:
-                        wait_s = (DELAY_S if read_only else DELAY_S / 2) + random()
+                        wait_s = (DELAY_S if read_only else DELAY_S / 2)
                         self._cond.wait(wait_s)
 
                     if read_only:

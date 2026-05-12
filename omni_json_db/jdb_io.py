@@ -5,6 +5,7 @@ from io import DEFAULT_BUFFER_SIZE
 from time import time
 from functools import reduce
 from collections import defaultdict
+from re import findall as re_findall
 from datetime import date as dt_date, datetime, timedelta
 from pickle import loads as pickle_loads, dumps as pickle_dumps, PicklingError
 from marshal import loads as marshal_loads, dumps as marshal_dumps
@@ -1323,7 +1324,7 @@ class JIo:
 
     @staticmethod
     def z_data_type_str(data_type:int) -> str:
-        if data_type == DEF_TYPE: return 'J+J'
+        if data_type == DEF_TYPE: return 'J+S'
         if data_type == L_J_TYPE: return 'L+J'
         if data_type == M_M_TYPE: return 'M+M'
         if data_type == J_J_TYPE: return 'J+J'
@@ -1343,6 +1344,55 @@ class JIo:
         if key_limit == -0x100: return 'bt'
         if key_limit > 0:       return f'<{key_limit+1}'
         return f'l{-key_limit-1}'
+
+    @staticmethod
+    def z_conv_days(timestamp:Union[int,float,datetime,dt_date]) -> int:
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.date()
+
+        if isinstance(timestamp, dt_date):
+            if timestamp < THE_1ST_DATE:
+                return 0
+
+            return (timestamp - THE_1ST_DATE).days
+
+        return NUM_1970_DAYS + max(0, int(timestamp) - THE_1ST_SEC) // DAY_SEC
+
+    @staticmethod
+    def z_conv_date(days:int) -> Tuple[dt_date, dt_date]:
+        old_days = days & OLD_DAY_MASK
+        new_days = (days & NEW_DAY_MASK) >> NEW_DAY_SHIFT
+
+        if old_days < NUM_1970_DAYS and old_days+new_days < NUM_1996_DAYS: # NOTES: remove after API v3
+            old_days += NUM_2000_DAYS
+            old_date = THE_1ST_DATE + timedelta(days=old_days)
+            if old_date > dt_date.today():
+                old_date -= timedelta(days=NUM_2000_DAYS)
+        else:
+            old_date = THE_1ST_DATE + timedelta(days=old_days)
+
+        new_date = old_date + timedelta(days=new_days)
+        return old_date, new_date
+
+    @staticmethod
+    def z_conv_str_to_days(val:str) -> int:
+        _vals = re_findall(r'(\d+)(?=\W|$)', val)
+        if len(_vals) == 3:
+            return JIo.z_conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
+
+        if len(_vals) == 6:
+            _date_0 = JIo.z_conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
+            _date_1 = JIo.z_conv_days(dt_date(*[int(v) for v in _vals[3:6]]))
+            if _date_0 >= _date_1:
+                val = _date_1 & OLD_DAY_MASK
+                val |= ((_date_0 - _date_1) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
+            else:
+                val = _date_0 & OLD_DAY_MASK
+                val |= ((_date_1 - _date_0) << NEW_DAY_SHIFT ) & NEW_DAY_MASK
+
+            return val
+        else:
+            raise ValueError
 
     def __init__(self, files_obj:JFilesBase, \
             data_type:Union[str,int,None]=None, \
@@ -1454,7 +1504,7 @@ class JIo:
     def init_APIs(self, api_ver:Optional[int], reset:bool=False):
         files_obj = self.files_obj
         if self.min_days < 0:
-            self.min_days = self.conv_days(files_obj.KEY_date())
+            self.min_days = self.z_conv_days(files_obj.KEY_date())
 
         fp = None
         data_type = self._data_type
@@ -1648,7 +1698,7 @@ class JIo:
     def change_APIs(self, version:Optional[int]=None, data_type:int=DEF_TYPE, zip_type:int=DEF_ZIP, reset:bool=False):
         if reset:
             if self.index_size is None:
-                self.index_size = DEF_INDEX_SIZE if isinstance(self.files_obj, JDiskFiles) else MIN_INDEX_SIZE
+                self.index_size = DEF_INDEX_SIZE
 
             if self.reserved_rate is None:
                 self.reserved_rate = DEF_RATIO
@@ -1955,33 +2005,6 @@ class JIo:
 
         data = fp.read(index_size)
         return self.KEY_loads(data)
-
-    def conv_days(self, timestamp:Union[int,float,datetime,dt_date]) -> int:
-        if isinstance(timestamp, datetime):
-            timestamp = timestamp.date()
-
-        if isinstance(timestamp, dt_date):
-            if timestamp < THE_1ST_DATE:
-                return 0
-
-            return (timestamp - THE_1ST_DATE).days
-
-        return NUM_1970_DAYS + max(0, int(timestamp) - THE_1ST_SEC) // DAY_SEC
-
-    def conv_date(self, days:int) -> Tuple[dt_date, dt_date]:
-        old_days = days & OLD_DAY_MASK
-        new_days = (days & NEW_DAY_MASK) >> NEW_DAY_SHIFT
-
-        if old_days < NUM_1970_DAYS and old_days+new_days < NUM_1996_DAYS: # NOTES: remove after API v3
-            old_days += NUM_2000_DAYS
-            old_date = THE_1ST_DATE + timedelta(days=old_days)
-            if old_date > dt_date.today():
-                old_date -= timedelta(days=NUM_2000_DAYS)
-        else:
-            old_date = THE_1ST_DATE + timedelta(days=old_days)
-
-        new_date = old_date + timedelta(days=new_days)
-        return old_date, new_date
 
     def update_days(self) -> int:
         timestamp = int(time())
