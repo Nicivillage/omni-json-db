@@ -32,7 +32,7 @@ Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use
 ***********
 * **Deeply Pythonic**: Forget SQL! Interact with your database using standard Python ``dict`` methods, slicing, and even ``set`` operations. [refer to `Basic`_ + `Operator`_]
 
-* **Dynamic Serialization & Advanced Compression**: Mix and match JSON(``orjson``), MsgPack(``ormsgpack``), Marshal, and Pickle with advanced compression algorithms like LZ4, Zstandard (z1/z2/zs), Brotli, and Bzip2 to perfectly balance I/O speed and disk footprint. [refer to `Supported Data Formats`_ + `Supported Zip Formats`_]
+* **Dynamic Serialization & Advanced Compression**: Mix and match JSON(``orjson``), MsgPack(``ormsgpack``), Marshal, and Pickle with advanced compression algorithms like LZ4, Zstandard (z1/z2/zs), Brotli, and Bzip2 to perfectly balance I/O speed and disk footprint. [refer to `Change Type`_ + `Supported Data Formats`_ + `Supported Zip Formats`_]
 
 * **Powerful Query Engine**: Powerful Query Engine: Search effortlessly using Regular Expressions (Regex), Lambda filters (``jdb[lambda k, v: v > 10]``), and rich condition operators (``EQ``, ``GT``, ``LT``, ``IN``, ``HAS``, ``RE``). [refer to `Query`_]
 
@@ -281,6 +281,34 @@ Group
    matches = jdb.find(r':::a')
    print(matches) # Output: ['red:::apple', 'red:::tomato', 'yellow:::banana', 'yellow:::mango']
 
+Change Type
+-----------
+
+.. code-block:: python
+
+   from omni_json_db import JDb
+
+   # Initialize the database in memory
+   # Key-Value is Json+Json with no compression
+   jdb = JDb(data_type='J+J', zip_type='no')
+
+   fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}
+
+   # add all fruits to database
+   jdb += fruits
+   assert jdb == fruits
+   print(jdb.data_type, jdb.zip_type) # Output: J+J no
+
+   # change date_type to 'S+S' and zip_type to 'lz'
+   jdb.upgrade(data_type='S+S', zip_type='lz')
+   assert jdb == fruits
+   print(jdb.data_type, jdb.zip_type) # Output: S+S lz
+
+   # only change KEY type from 'S' to 'J'
+   jdb.change_KEY('J')
+   assert jdb == fruits
+   print(jdb.data_type, jdb.zip_type) # Output: J+S lz
+
 Operator
 --------
 
@@ -503,7 +531,6 @@ Date Lookups
    # change all keys create date
    jdb.keys[:] = today
    assert jdb[today] == fruits
-
 
 Advanced
 --------

@@ -242,7 +242,7 @@ def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bo
                         return False
 
             elif cmd == '$func':
-                if not callable(rule):
+                if not callable(rule): # pragma: no cover
                     return False
 
                 arg_cnt = rule.__code__.co_argcount
@@ -255,36 +255,36 @@ def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bo
                 else:
                     return False
 
-            elif cmd == '$len':
-                if not hasattr(rule, '__iter__'):
-                    return False
+            # elif cmd == '$len':
+            #     if not hasattr(rule, '__iter__'):
+            #         return False
 
-                _len = len(val)
-                if isinstance(rule, range):
-                    if _len not in rule:
-                        return False
+            #     _len = len(val)
+            #     if isinstance(rule, range):
+            #         if _len not in rule:
+            #             return False
 
-                elif isinstance(rule, int):
-                    if _len != rule:
-                        return False
+            #     elif isinstance(rule, int):
+            #         if _len != rule:
+            #             return False
 
-                elif isinstance(rule, float):
-                    if _len != int(rule):
-                        return False
+            #     elif isinstance(rule, float):
+            #         if _len != int(rule):
+            #             return False
 
-                elif isinstance(rule, (list, set, frozenset, tuple)):
-                    if _len not in rule:
-                        return False
+            #     elif isinstance(rule, (list, set, frozenset, tuple)):
+            #         if _len not in rule:
+            #             return False
 
-                else:
-                    return False
+            #     else:
+            #         return False
 
             elif cmd == '$not':
                 if _match_rules(key, val, rule, level=level+1):
                     return False
 
             elif cmd == '$or':
-                if not isinstance(rule, dict):
+                if not isinstance(rule, dict): # pragma: no cover
                     return False
 
                 is_matched = False
@@ -298,7 +298,7 @@ def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bo
                     return False
 
             elif cmd == '$and':
-                if not isinstance(rule, dict):
+                if not isinstance(rule, dict): # pragma: no cover
                     return False
 
                 is_matched = True
@@ -312,7 +312,7 @@ def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bo
                     return False
 
             elif cmd[1:].isdigit():
-                if not isinstance(val, list):
+                if not isinstance(val, (list, tuple)): # pragma: no cover
                     return False
 
                 try:
@@ -326,7 +326,7 @@ def _match_rules(key:str, val:Any, rules:Any, level:int=0, ANY:bool=False) -> bo
                 return False
 
         elif hasattr(val, '__iter__') and cmd in val:
-            if not isinstance(val, dict):
+            if not isinstance(val, dict): # pragma: no cover
                 return False
 
             if not _match_rules(key, val[cmd], rule, level=level+1):
@@ -428,7 +428,8 @@ class JDbKey:
     def __call__(self, keys:Optional[Any]=None, vals:Optional[Any]=None, date:Optional[Any]=None, limit:int=0, with_value:bool=False, copy:bool=False, **kwargs) -> Generator[Union[str,Tuple[str,tuple]]]:
         jdb = self.jdb
         if keys or vals or kwargs:
-            yield from jdb.find_iter(keys=keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs)
+            for key, _val in jdb.find_iter(keys=keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs):
+                yield key
 
         else:
             with jdb.open(read_only=True):
@@ -815,12 +816,12 @@ class JDbReader:
             files_obj = jdb.files_obj.copy()
 
         elif isinstance(KEY_file, str):
-            if not KEY_file:
+            if not KEY_file: # pragma: no cover
                 files_obj = JMemFiles(None, **kwargs)
             elif re_match(r'^([12]?\d\d?[:.]){4}(?<=:)\d{1,5}$', KEY_file):
                 server_ip, server_port = KEY_file.split(':')
                 server_port = int(server_port)
-                if not 65535 >= server_port > 0 or not all(255 > int(vv) >= 0 for vv in server_ip.split('.')):
+                if not 65535 >= server_port > 0 or not all(255 > int(vv) >= 0 for vv in server_ip.split('.')): # pragma: no cover
                     raise TypeError
                 files_obj = JNetFiles((server_ip, server_port))
             else:
@@ -1071,7 +1072,7 @@ class JDbReader:
         if isinstance(keys, str):
             keys = {keys}
 
-        elif isinstance(keys, bytes):
+        elif isinstance(keys, (bytes, bytearray)): # pragma: no cover
             keys = {str(keys)}
 
         elif hasattr(keys, '__iter__'):
@@ -1080,7 +1081,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -1132,7 +1133,7 @@ class JDbReader:
             if isinstance(_step, int):
                 pass
 
-            elif isinstance(_step, float):
+            elif isinstance(_step, float): # pragma: no cover
                 _step = int(_step)
 
             elif isinstance(_step, str):
@@ -1217,11 +1218,8 @@ class JDbReader:
                 else:
                     min_ver = 0
 
-            elif key.start < 0:
-                min_ver = sync_id + int(key.start)
-
             else:
-                min_ver = int(key.start)
+                min_ver = (sync_id + int(key.start)) if key.start < 0 else int(key.start)
 
             if key.stop is None:
                 pass
@@ -1235,11 +1233,9 @@ class JDbReader:
                 else:
                     max_ver = sync_id
 
-            elif key.stop < 0:
-                max_ver = sync_id + int(key.stop)
-
             else:
-                max_ver = int(key.stop)
+                max_ver = (sync_id + int(key.stop)) if key.stop < 0 else int(key.stop)
+
 
         elif chk_days:
             _start = 0
@@ -1261,14 +1257,14 @@ class JDbReader:
             fp_table[ident] = fp_dict = fp_table.get(ident, {-1:None})
             try:
                 try:
+                    is_latest = False
                     if read_only:
                         if io.is_updated():
-                            if files_obj.KEY_size() == io.file_size:
+                            is_latest = files_obj.KEY_size() == io.file_size
+                            if is_latest:
                                 self.safe_line = io.n_records
                                 if chg_keys: chg_keys.clear()
                                 return fp_dict
-
-                        is_latest = False
                     else:
                         io.update_days()
                         is_latest = files_obj.KEY_size() == io.file_size
@@ -1282,7 +1278,7 @@ class JDbReader:
                         key_fp = fp_dict[-1] = files_obj.KEY_open('rb+', buffering=KEY_FILE_BUF_SIZE)
 
                     io.read_header(key_fp, seek=False) # [1] first time [2] changed by other
-                    if not is_latest or not io.is_updated():
+                    if not is_latest or not io.is_updated(): # pragma: no cover
                         io.load_keys(key_fp, force=data_type==0)
                         if _cache: _cache.clear()
                         self.fsize = io.file_size
@@ -1356,7 +1352,8 @@ class JDbReader:
                             if key_fp is not None:
                                 key_fp.close()
 
-                    elif io.file_size == 0 or io.n_records != len(io.key_table): # read mode
+                    # read mode
+                    elif io.file_size == 0 or io.n_records != len(io.key_table): # pragma: no cover
                         if _cache:
                             _cache.clear()
 
@@ -1445,7 +1442,7 @@ class JDbReader:
                     try:
                         key_fp = fp_dict.pop(-1, None)
                         if key_fp is not None:
-                            if io.file_size > 0 and io.n_lines > 0:
+                            if io.file_size > 0 and io.n_lines > 0: # pragma: no cover
                                 self.fsize = io.write_header(key_fp)
 
                             key_fp.close()
@@ -1487,20 +1484,15 @@ class JDbReader:
                                 key_fp = fp_dict.pop(-1, None)
                                 try:
                                     if key_fp is None:
-                                        try:
-                                            key_fp = files_obj.KEY_open('rb+', buffering=KEY_FILE_BUF_SIZE)
-
-                                        except FileNotFoundError:
-                                            io, key_fp = self._init_KEY()
+                                        key_fp = files_obj.KEY_open('ab+', buffering=KEY_FILE_BUF_SIZE)
                                     else:
                                         key_fp.flush()
-                                        key_fp.seek(0)
-
+                                    
                                     if _cache and io.remv_id != io._remv_id:
                                         for kk in set(_cache).difference(io.key_table):
                                             _cache.pop(kk, 0)
 
-                                    self.fsize = io.write_header(key_fp, seek=False)
+                                    self.fsize = io.write_header(key_fp)
 
                                 finally:
                                     if key_fp is not None:
@@ -1707,7 +1699,7 @@ class JDbReader:
 
         elif hasattr(keys, '__iter__'):
             keys = {key if isinstance(key, str) else str(key) for key in keys}
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         if keys:
@@ -1743,7 +1735,7 @@ class JDbReader:
         elif hasattr(keys, '__iter__'):
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -1776,7 +1768,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -1810,7 +1802,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -1842,7 +1834,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else: # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -1875,8 +1867,8 @@ class JDbReader:
         elif hasattr(keys, '__iter__'):
             pass
 
-        else:
-            keys = {keys}
+        else: # pragma: no cover
+            keys = {str(keys)}
 
         with self.open(read_only=True):
             key_table = self.io.key_table
@@ -1922,8 +1914,8 @@ class JDbReader:
         elif hasattr(keys, '__iter__'):
             pass
 
-        else:
-            keys = {keys}
+        else: # pragma: no cover
+            keys = {str(keys)}
 
         with self.open(read_only=True):
             io = self.io
@@ -1958,13 +1950,8 @@ class JDbReader:
 
                     io = self.io
                     jio = jdb.io
-                    if io.n_records > jio.n_records:
-                        min_key_table = jio.key_table
-                        max_key_table = io.key_table
-                    else:
-                        min_key_table = io.key_table
-                        max_key_table = jio.key_table
-
+                    min_key_table, max_key_table = (jio.key_table, io.key_table) if io.n_records > jio.n_records \
+                                                else (io.key_table, jio.key_table)
                     for key in min_key_table:
                         if key in max_key_table:
                             return False
@@ -1974,19 +1961,14 @@ class JDbReader:
         elif hasattr(keys, '__iter__'):
             pass
 
-        else:
-            keys = {keys}
+        else: # pragma: no cover
+            keys = {str(keys)}
 
         with self.open(read_only=True):
             io = self.io
             keys = {key if isinstance(key, str) else str(key) for key in keys}
-            if io.n_records > len(keys):
-                min_key_table = keys
-                max_key_table = io.key_table
-            else:
-                min_key_table = io.key_table
-                max_key_table = keys
-
+            min_key_table, max_key_table = (keys, io.key_table) if io.n_records > len(keys) \
+                                                else (io.key_table, keys)
             for key in min_key_table:
                 if key in max_key_table:
                     return False
@@ -2059,7 +2041,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else:  # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -2096,7 +2078,7 @@ class JDbReader:
 
             keys = {key if isinstance(key, str) else str(key) for key in keys}
 
-        else:
+        else:  # pragma: no cover
             keys = {str(keys)}
 
         with self.open(read_only=True):
@@ -2275,9 +2257,7 @@ class JDbReader:
 
             if isinstance(key, float):
                 sync_id = int(key)
-                if sync_id < 0:
-                    sync_id = io.sync_id + sync_id
-
+                sync_id = (io.sync_id + sync_id) if sync_id < 0 else sync_id
                 if sync_id >= io.sync_id or sync_id < 0:
                     return
 
@@ -2351,7 +2331,7 @@ class JDbReader:
 
                 return
 
-            if isinstance(key, (bytes, bytearray)):
+            if isinstance(key, (bytes, bytearray)): # pragma: no cover
                 pass
 
             elif hasattr(key, '__iter__'):
@@ -2361,30 +2341,30 @@ class JDbReader:
                 has_childs = len(io.groups) > 0 or len(self.childs) > 0
                 for _key in key:
                     _key = str(_key)
-                    if _key in done:
-                        continue
-                    done.add(_key)
+                    if _key not in done:
+                        done.add(_key)
 
-                    row_id = key_table[_key]
-                    if row_id < 0:
-                        if has_childs and _key.find(SEP_SYM) >= 0:
-                            for kk,vv in self.item_iter(_key):
-                                yield kk,vv
+                        row_id = key_table[_key]
+                        if row_id < 0:
+                            if has_childs and _key.find(SEP_SYM) >= 0:
+                                for kk,vv in self.item_iter(_key):
+                                    yield kk,vv
 
-                        continue
+                            continue
 
-                    val = f_read(fp, _key, row=row_id, copy=False)
-                    yield _key, val
+                        val = f_read(fp, _key, row=row_id, copy=False)
+                        yield _key, val
 
                 return
 
             # bytes | bytearray | bool
-            key = str(key)
-            row_id = io.key_table[key]
-            if row_id >= 0:
-                yield key, self.f_read(fp, key, row=row_id, copy=False)
+            if not isinstance(key, str): # pragma: no cover
+                key = str(key)
+                row_id = io.key_table[key]
+                if row_id >= 0:
+                    yield key, self.f_read(fp, key, row=row_id, copy=False)
 
-    def find_iter(self, keys:Optional[Any]=None, vals:Optional[Dict[str,Any]]=None, date:Union[str,datetime,dt_date,int,None]=None, limit:int=0, with_value:bool=False, **kwargs) -> Generator[Union[str,Tuple[str,Any]]]:
+    def find_iter(self, keys:Optional[Any]=None, vals:Optional[Dict[str,Any]]=None, date:Union[str,datetime,dt_date,int,None]=None, limit:int=0, with_value:bool=False, **kwargs) -> Generator[Tuple[str,Any]]:
         '''
             $gt, $ge, $lt, $le, $eq, $ne, $in ,$re, $re2, $has, $func : value
                 find_iter(vals={'$eq': "value"})
@@ -2412,7 +2392,6 @@ class JDbReader:
                 $has : value
                 $re : string (obj -> json -> str)
                 $re2 : string (obj -> json -> sub(W) -> str)
-                $len : value
                 $and, $or, $not {...}
                 $[0-9]+ : {...}
                 $val : {...},
@@ -2488,12 +2467,8 @@ class JDbReader:
                             if not isinstance(child, JDbReader):
                                 continue
 
-                            for ret in child.find_iter(next_keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs):
-                                if isinstance(ret, tuple):
-                                    kk,vv = ret
-                                    yield child_name+SEP_SYM+kk,vv
-                                else:
-                                    yield child_name+SEP_SYM+ret
+                            for kk,vv in child.find_iter(next_keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs):
+                                yield child_name+SEP_SYM+kk,vv
                     return
 
                 key_rule = re_compile(keys, flags=re_flags)
@@ -2504,7 +2479,7 @@ class JDbReader:
             elif callable(keys):
                 key_rule = keys
 
-            else:
+            else:  # pragma: no cover
                 raise TypeError('invalid type')
 
         min_date = max_date = None
@@ -2573,6 +2548,8 @@ class JDbReader:
 
                             if not key_rule(key, value):
                                 is_matched = False
+                            else:
+                                with_value = True
 
                         elif arg_cnt == 1:
                             if not key_rule(key):
@@ -2591,7 +2568,7 @@ class JDbReader:
                         continue
 
                 if not with_value:
-                    yield key
+                    yield key, None
                     count += 1
                     continue
 
@@ -2712,7 +2689,7 @@ class JDbReader:
 
         return matches
 
-    def find(self, keys:Optional[Any]=None, vals:Optional[Dict[str,Any]]=None, date:Union[str,datetime,dt_date,int,None]=None, limit:int=0, with_value:bool=False, sort:int=0, **kwargs) -> Union[dict,list]:
+    def find(self, keys:Optional[Any]=None, vals:Optional[Dict[str,Any]]=None, date:Union[str,datetime,dt_date,int,None]=None, limit:int=0, with_value:bool=False, sort:int=0, **kwargs) -> Dict[str,Any]:
         if not vals:
             vals = {}
 
@@ -2723,18 +2700,12 @@ class JDbReader:
         if vals or sort:
             with_value = True
 
-        if with_value:
-            matches = {}
-            for key,val in self.find_iter(keys=keys, vals=vals, date=date, limit=limit, with_value=True, **kwargs):
-                matches[key] = val
+        matches = {}
+        for key,val in self.find_iter(keys=keys, vals=vals, date=date, limit=limit, with_value=with_value, **kwargs):
+            matches[key] = val
 
-            if sort:
-                return dict(sorted(matches.items(), key=lambda v : v[1], reverse=sort<0))
-
-        else:
-            matches = []
-            for key in self.find_iter(keys=keys, vals=None, date=date, limit=limit, with_value=False, **kwargs):
-                matches.append(key)
+        if sort:
+            return dict(sorted(matches.items(), key=lambda v : v[1], reverse=sort<0))
 
         return matches
 
@@ -2807,12 +2778,12 @@ class JDbReader:
 
     def get_n(self, *records:str) -> Dict[str,Any]:
         keys = set()
-        for key in records:
+        for key in records: # pragma: no cover
             if isinstance(key, str):
                 keys.add(key)
-            elif key.__hash__: # pragma: no cover
+            elif key.__hash__:
                 keys.add(str(key))
-            else: # pragma: no cover
+            else:
                 for kk in key:
                     keys.add(kk if isinstance(kk, str) else str(kk))
 

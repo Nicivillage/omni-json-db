@@ -239,6 +239,73 @@ class TestJDb(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    def test_csv(self):
+        for config in self.jdb_configs:
+            st_time = time.perf_counter()
+            filename = config['KEY_file']
+            cache_limit = config['cache_limit']
+            jdb = self.jdbs[filename]
+            self.assertIsNotNone(jdb)
+            jdb.clear(agree='yes', wait_sec=0, **config)
+            print(Style(f'Testing {filename} {jdb} rate:{jdb.reserved_rate*100.:.1f}% cache:{cache_limit}', yellow=1, bright=1))
+            # --------------------------------------------
+            jmem = JDb()
+            jmem['group'] = jdb1 = JDb(jdb)
+            jmem.clear(agree='yes', wait_sec=0)
+
+            csv_file = 'db/test.csv'
+            jdb += {'key1':1, 'key2':'a', 'key3':3., 'key4':True, 'key5':None}
+            jdb.to_csv(csv_file)
+
+            jmem2 = JDb(data_type=jdb.data_type, zip_type=jdb.zip_type)
+            jmem2.from_csv(csv_file)
+            self.assertEqual(set(jdb), set(jmem2))
+            self.assertNotEqual(jdb, jmem2)
+
+            del jdb[:]
+            jdb += {'key1':[1, 2], 'key2':('a', 'b'), 'key3':[3., 4.], 'key4':[True, False], 'key5':[5, 'a', 6.], 'key6':['value']}
+            jdb.to_csv(csv_file)
+
+            # jmem2 = JDb(data_type=jdb.data_type, zip_type=jdb.zip_type)
+            jmem2.from_csv(csv_file)
+            self.assertEqual(set(jdb), set(jmem2))
+            self.assertNotEqual(jdb, jmem2)
+            self.assertTrue(all(len(v) == 3 for v in jmem2.values()))
+
+            del jdb[:]
+            del jmem2[:]
+            expect = {f'key{v}': {
+                        'str':f'value-{v:03d}'*((v%100)+1),
+                        'list':str([random.randrange(v+100) for _ in range(32)]),
+                        'float1':str(1.1),
+                        'float2':str(-1.),
+                        'bool': str(True),
+                        'max_int':str(2**64-1),
+                        'min_int':str(-(2**63))} for v in range(8)}
+
+            jdb += expect
+            jdb.to_csv(csv_file)
+            self.assertEqual(jdb, expect)
+            self.assertNotEqual(jmem2, expect)
+
+            jmem2.from_csv(csv_file)
+            self.assertEqual(jmem2, expect)
+            self.assertEqual(jmem2, jdb)
+
+            self.assertEqual(jdb, jdb1)
+            self.assertEqual(jdb.keys[:], jdb1.keys[:])
+            self.assertEqual(jdb.keys[0.:], jdb1.keys[0.:])
+            self.assertEqual(jdb.file_table, jdb1.file_table)
+            self.assertEqual(jdb.sync_id, jdb1.sync_id)
+
+            jmem.recycle(level=2)
+            error = jmem.check_error(level=2)
+            self.assertTrue(not error)
+
+            used_s = time.perf_counter() - st_time
+            fsize = sum(jdb.file_table.values()) if jdb.file_table else 0
+            print(f'{filename}|{jdb}| size:{fsize//1024:,}KB used:{used_s:.4f}s')
+
     def test_group_key(self):
         for config in self.jdb_configs:
             st_time = time.perf_counter()
@@ -1343,6 +1410,42 @@ class TestJDb(unittest.TestCase):
                         self.assertTrue(_ret)
 
             self.assertEqual(jdb, jmem)
+            expect = {f'key{v}':list(range(v+1)) for v in range(32)}
+            jmem = JDb(data_type=jdb.data_type, flags=JFlag.SPLIT)
+            jmem[expect] = 0
+            self.assertEqual(set(jmem.values()), {0})
+
+            with jmem.open(read_only=False) as fp:
+                for key,val in expect.items():
+                    val_bytes = dumps(val, jmem.data_type[-1])
+                    jmem.f_write_bytes(fp, key, val_bytes)
+
+            self.assertEqual(jmem, expect)
+
+            with jmem.open(read_only=False) as fp:
+                for key,val in expect.items():
+                    val_bytes = dumps(0, jmem.data_type[-1])
+                    jmem.f_write_bytes(fp, key, val_bytes)
+
+            self.assertEqual(set(jmem.values()), {0})
+
+            expect = {f'key{v}':list(range(32-v)) for v in range(32)}
+            with jmem.open(read_only=False) as fp:
+                for key,val in expect.items():
+                    val_bytes = dumps(val, jmem.data_type[-1])
+                    jmem.f_write_bytes(fp, key, val_bytes)
+
+            self.assertEqual(jmem, expect)
+
+            with jmem.open() as fp:
+                for key,val in expect.items():
+                    jmem.f_write(fp, key, set(range(32)))
+                    jmem.f_write(fp, key, val)
+                    jmem.f_delete(fp, key)
+                    jmem.f_write(fp, key, val)
+
+            self.assertEqual(jmem, expect)
+
             jmem2 = JDb(data_type=f'{jdb.data_type}({jdb.zip_type})')
             jmem2['key2', 'key3'] = 1
             self.assertTrue(jdb.is_superset(jmem2))
@@ -1859,8 +1962,10 @@ class TestJDb(unittest.TestCase):
                         jdb.f_write(fp2, key, val)
                 finally:
                     jdb.f_close()
+                    fp2 = None
             finally:
                 jdb.f_close()
+                fp1 = None
 
             ret = jdb[float(sync_id):]
             self.assertEqual(ret, expect2)
@@ -1932,6 +2037,7 @@ class TestJDb(unittest.TestCase):
             jmem = JDb()
             jmem['group'] = jdb1 = JDb(jdb)
             jmem.clear(agree='yes', wait_sec=0)
+            jmem.recycle(level=2, merge=True, fill_zero=True)
 
             sync_id = jdb.sync_id
             test_size = 100
@@ -2146,9 +2252,6 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(jdb.sync_id, jdb1.sync_id)
 
             error = jdb.check_error()
-            self.assertTrue(not error)
-
-            error = jmem.check_error(level=2)
             self.assertTrue(not error)
 
             # --------------------------------------------
@@ -3131,6 +3234,24 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(jdb, expect)
             self.assertEqual(len(jdb), len(chg))
 
+            matches = jdb.find(IN=[2,4,6,8])
+            self.assertEqual(matches, {f'kkk{i}':i for i in (2,4,6,8)})
+
+            matches = jdb.find(lambda k: k.find('0') > 0)
+            self.assertEqual(matches, {f'kkk{i}':None for i in range(0,100,10)})
+
+            matches = jdb.find(lambda k,v: k.find('0') > 0 and v <= 20)
+            self.assertEqual(matches, {f'kkk{i}':i for i in (0, 10,20)})
+
+            matches = jdb.find(NOT={'$ge':10})
+            self.assertEqual(matches, {f'kkk{i}':i for i in range(10)})
+
+            matches = jdb.find(AND={'$ge':10, '$lt':20})
+            self.assertEqual(matches, {f'kkk{i}':i for i in range(10, 20)})
+
+            matches = jdb.find(NOT={'$or':{'$lt':10, '$ge':20}})
+            self.assertEqual(matches, {f'kkk{i}':i for i in range(10, 20)})
+
             matches = jdb.find('kkk', sort=1)
             self.assertEqual(matches, expect)
             self.assertEqual(list(matches.items())[0], ('kkk0', 0))
@@ -3223,6 +3344,10 @@ class TestJDb(unittest.TestCase):
             jdb['中文'] = ['數學', '文字', '人類', 999, ]
 
             matches = jdb.find(ANY=999)
+            self.assertEqual(len(matches), 1)
+            self.assertIn('中文', matches)
+
+            matches = jdb.find(vals={'$1':{'$eq':'文字'}})
             self.assertEqual(len(matches), 1)
             self.assertIn('中文', matches)
 
@@ -4392,6 +4517,10 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(jdb, expect)
             self.assertEqual(jdb, jdb1)
 
+            jdb1[:] = 0
+            jdb ^= jdb1
+            self.assertEqual(jdb, expect)
+
             key = 'key8'
             old_val = jdb[key]
             jdb[key] = new_val = 8
@@ -4427,7 +4556,8 @@ class TestJDb(unittest.TestCase):
             self.assertNotEqual(jdb, expect)
 
             # ret = jdb.revert('key1', 'key2', 'key4', 'key16')
-            jdb ^= ['key1', 'key2', 'key4', 'key16']
+            jdb ^= 'key1'
+            jdb ^= ['key2', 'key4', 'key16']
             self.assertEqual(jdb, expect)
             self.assertEqual(jdb, jdb1)
 
@@ -4504,6 +4634,26 @@ class TestJDb(unittest.TestCase):
             jdb['key13', 'key23'] = 'val'
             jdb.unmodify('key13', 'key23')
             self.assertEqual(jdb, expect)
+
+            # unrevertable but faster: flags=0
+            jmem1 = JDb(data_type=jdb.data_type, zip_type=jdb.zip_type, flags=JFlag.REVERT)
+            jmem2 = JDb(data_type=jdb.data_type, zip_type=jdb.zip_type, flags=0)
+
+            jmem1 += expect
+            jmem2 += expect
+            self.assertEqual(jmem1, expect)
+            self.assertEqual(jmem1, jmem2)
+
+            jmem1 &= {key:list(range(16)) for key in expect}
+            jmem2 &= jmem1
+            self.assertEqual(jmem1, jmem2)
+
+            jmem1 ^= expect
+            self.assertEqual(jmem1, expect)
+
+            jmem2 ^= expect
+            self.assertNotEqual(jmem2, expect)
+            self.assertNotEqual(jmem1, jmem2)
 
             self.assertEqual(jdb, jdb1)
             self.assertEqual(jdb.keys[:], jdb1.keys[:])
@@ -5630,24 +5780,6 @@ class TestJDb(unittest.TestCase):
             jmem1.recycle()
             self.assertEqual(len(jmem.keys[0.:]), 0)
 
-            expect = {f'key{v}': {
-                        'str':f'value-{v:03d}'*((v%100)+1),
-                        'list':str([random.randrange(v+100) for _ in range(32)]),
-                        'float1':str(1.1),
-                        'float2':str(-1.),
-                        'bool': str(True),
-                        'max_int':str(2**64-1),
-                        'min_int':str(-(2**63))} for v in range(8)}
-
-            jmem.insert(expect)
-            self.assertEqual(jmem, expect)
-            jmem.to_csv('db/test.csv')
-            jmem1 = JDb(None, data_type=data_type, zip_type=zip_type)
-            jmem1.from_csv('db/test.csv')
-            self.assertEqual(jmem1, expect)
-            self.assertEqual(jmem1, jmem)
-
-            jmem.clear(agree='yes', wait_sec=0)
             test_size = 100
             expect = {f'key{v}':1 for v in range(test_size)}
             jmem.insert(expect)
