@@ -6,4 +6,5 @@ msgpack
 orjson
 ormsgpack
 portalocker
+pyyaml
 zstandard
