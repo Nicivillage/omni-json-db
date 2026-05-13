@@ -22,6 +22,11 @@ except ImportError:
 from bitarray import bitarray
 
 try:
+    import yaml
+except ImportError:
+    yaml = None
+
+try:
     from brotli import compress as brotli_compress, decompress as brotli_decompress, error as BR_Error
     br_compress = lambda _bytes : brotli_compress(_bytes, quality=6)
     br_decompress = brotli_decompress
@@ -167,7 +172,9 @@ J_S_TYPE = 7 # Json+Msgpack                 | readale, small size
 S_M_TYPE = 8 # Msgpack+Marshal              | unreadable, full type
 S_J_TYPE = 9 # Msgpack+Json                 | half-readable
 S_P_TYPE = 10# Msgpack+Pickle               | unreadable, full type
-LAST_DATA_TYPE = S_P_TYPE
+J_Y_TYPE = 11# Json+Yaml                    | readable, full type
+S_Y_TYPE = 12# Msgpack+Yaml                 | half-readable
+LAST_DATA_TYPE = S_Y_TYPE
 
 DEF_ZIP = -1 # default zip type
 NO_ZIP = 0 # no zip mode                    | fastest
@@ -982,6 +989,8 @@ class JIoHEAD:
                 S+M = [8] KEY=msgpack : VAL=Marshal
                 S+J = [9] KEY=msgpack : VAL=Json
                 S+P = [10]KEY=msgpack : VAL=Pickle
+                J+Y = [11] KEY=msgpack : VAL=YAML
+                S+Y = [12]KEY=msgpack : VAL=YAML
 
             > 7| swap_id [int]
                 - +1 when swapping key to differnt row
@@ -1282,6 +1291,19 @@ class JIoVAL_P(JIoVAL):
 
         raise ValueError
 
+class JIoVAL_Y(JIoVAL):
+    def dumps(self, data:Any) -> bytes:
+        return yaml.safe_dump(data, allow_unicode=True).encode('utf8')
+
+    def loads(self, data:bytes) -> Any:
+        for _ in range(9):
+            try:
+                return yaml.safe_load(data)
+            except yaml.YAMLError: # pragma: no cover
+                data = data + b'\n'
+
+        raise ValueError
+
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
@@ -1294,6 +1316,7 @@ g_VAL_J = JIoVAL_J()
 g_VAL_S = JIoVAL_S()
 g_VAL_M = JIoVAL_M()
 g_VAL_P = JIoVAL_P()
+g_VAL_Y = JIoVAL_Y()
 g_HEAD = JIoHEAD()
 
 class JIo:
@@ -1335,6 +1358,8 @@ class JIo:
         if data_type == S_M_TYPE: return 'S+M'
         if data_type == S_J_TYPE: return 'S+J'
         if data_type == S_P_TYPE: return 'S+P'
+        if data_type == J_Y_TYPE: return 'J+Y'
+        if data_type == S_Y_TYPE: return 'S+Y'
 
         raise ValueError(f'unknown data type {data_type}')
 
@@ -1628,6 +1653,10 @@ class JIo:
                     value = S_J_TYPE
                 elif value in {'S+P', 'S:P'}:
                     value = S_P_TYPE
+                elif value in {'J+Y', 'J:Y'}:
+                    value = J_Y_TYPE
+                elif value in {'S+Y', 'S:Y'}:
+                    value = S_Y_TYPE
                 else:
                     raise ValueError(f'invalid data string {value}')
 
@@ -1636,6 +1665,9 @@ class JIo:
 
         if not LAST_DATA_TYPE >= value >= 0:
             raise ValueError(f'invalid data type {value}')
+
+        if yaml is None and value in {J_Y_TYPE, S_Y_TYPE}: # pragma: no cover
+            raise ModuleNotFoundError("PyYAML is not installed. Please pip install pyyaml.")
 
         self._data_type = value
 
@@ -1793,6 +1825,16 @@ class JIo:
                 self.KEY_dumps = g_KEY_S.dumps_v0
                 self.VAL_loads = g_VAL_P.loads
                 self.VAL_dumps = g_VAL_P.dumps
+            elif data_type == J_Y_TYPE:
+                self.KEY_loads = g_KEY_J.loads_v0
+                self.KEY_dumps = g_KEY_J.dumps_v0
+                self.VAL_loads = g_VAL_Y.loads
+                self.VAL_dumps = g_VAL_Y.dumps
+            elif data_type == S_Y_TYPE:
+                self.KEY_loads = g_KEY_S.loads_v0
+                self.KEY_dumps = g_KEY_S.dumps_v0
+                self.VAL_loads = g_VAL_Y.loads
+                self.VAL_dumps = g_VAL_Y.dumps
             else:
                 raise ValueError(f'invalid data type {self.api_ver}->{version} type:{data_type}')
 
@@ -1857,6 +1899,16 @@ class JIo:
                 self.KEY_dumps = g_KEY_S.dumps_v1
                 self.VAL_loads = g_VAL_P.loads
                 self.VAL_dumps = g_VAL_P.dumps
+            elif data_type == J_Y_TYPE:
+                self.KEY_loads = g_KEY_J.loads_v1
+                self.KEY_dumps = g_KEY_J.dumps_v1
+                self.VAL_loads = g_VAL_Y.loads
+                self.VAL_dumps = g_VAL_Y.dumps
+            elif data_type == S_Y_TYPE:
+                self.KEY_loads = g_KEY_S.loads_v1
+                self.KEY_dumps = g_KEY_S.dumps_v1
+                self.VAL_loads = g_VAL_Y.loads
+                self.VAL_dumps = g_VAL_Y.dumps
             else:
                 raise ValueError(f'invalid data type {self.api_ver}->{version} type:{data_type}')
 

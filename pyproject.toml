@@ -7,7 +7,7 @@ exclude = ["artwork", "tests"]
 
 [project]
 name = "omni_json_db"
-version = "2.09.05"
+version = "2.10.00"
 authors = [
 	{ name="Lukatrum", email="lukatrum@gmail.com"}
 ]
@@ -35,7 +35,8 @@ keywords = [
 	"json",
 	"key-value",
 	"marshal",
-	"mrsw-lock",
+	"messagepack",
+	"mrsw-lock",	
 	"msgpack",
 	"multiprocessing",
 	"multithreading",	
@@ -51,6 +52,7 @@ keywords = [
 	"storage",
 	"sync",
 	"query",
+	"yaml",
 ]
 classifiers = [
 	"Programming Language :: Python :: 3",
@@ -84,6 +86,7 @@ dependencies = [
 	"ormsgpack>=1.2.6; platform_python_implementation != 'PyPy'",
 	"BTrees>=5.2",
 	"portalocker>=2.7.0; os_name == 'nt'",
+	"pyyaml>=5.0; python_version >= '3.8'",
 ]
 license="MIT"
 license-files = ["LICEN[CS]E*"]

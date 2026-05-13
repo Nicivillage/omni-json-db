@@ -11,7 +11,7 @@ from csv import DictReader, DictWriter
 #-----------------------------------------------------------------------------
 from .jdb_io import JIo, MIN_INDEX_SIZE, VAL_FILE_BUF_SIZE, KEY_FILE_BUF_SIZE,\
             API_LATEST, CHG_DAY_FLAG, NEW_DAY_MASK, OLD_DAY_MASK,\
-            g_VAL_J, g_VAL_S, g_VAL_M, g_VAL_P
+            g_VAL_J, g_VAL_S, g_VAL_M, g_VAL_P, g_VAL_Y
 from .jdb_lite import JDbReader, JDbKey, JFlag, SEP_SYM, SEP_LEN
 from .utils import Style
 #from .utils import debug_break
@@ -4504,7 +4504,7 @@ class JDb(JDbReader):
     @staticmethod
     def z_dumps(data:Union(Any,JDbReader), ret_type:Optional[str]=None) -> bytes:
         """
-        convert any data into Json/Msgpack/Marshal/Pickle format
+        convert any data into Json/Marshal/Pickle/Msgpack/YAML format
         
         Args:
             data (Any): target Python data
@@ -4514,6 +4514,7 @@ class JDb(JDbReader):
                 "M" : Marshal format
                 "P" : Pickle format
                 "S" : Msgpack format
+                "Y" : YAML format
         Returns:
             bytes: converted data 
         
@@ -4529,20 +4530,21 @@ class JDb(JDbReader):
             ret_type = 'J'
 
         ret_type_u = ret_type.upper()
-        if ret_type_u not in 'JMPS':
-            raise ValueError('date_type must be (J)son/(M)arshal/(P)ickle/M(S)gpack')
+        if ret_type_u not in 'JMPSY':
+            raise ValueError('date_type must be (J)son/(M)arshal/(P)ickle/M(S)gpack/(Y)aml')
 
         dumps = g_VAL_J.dumps if ret_type_u == 'J' else \
-            g_VAL_S.dumps if ret_type_u == 'S' else \
             g_VAL_M.dumps if ret_type_u == 'M' else \
-            g_VAL_P.dumps
+            g_VAL_P.dumps if ret_type_u == 'P' else \
+            g_VAL_S.dumps if ret_type_u == 'S' else \
+            g_VAL_Y.dumps
 
         return dumps(data)
 
     @staticmethod
     def z_loads(data:bytes, ret_type:str='J') -> Any:
         """
-        convert Json/Msgpack/Marshal/Pickle bytes into Python data
+        convert Json/Marshal/Pickle/Msgpack/YAML bytes into Python data
         
         Args:
             data (Any): Json/Msgpack/Marshal/Pickle bytes                
@@ -4551,6 +4553,7 @@ class JDb(JDbReader):
                 "M" : Marshal format
                 "P" : Pickle format
                 "S" : Msgpack format
+                "Y" : YAML format
         Returns:
             bytes: Python data
         
@@ -4558,13 +4561,14 @@ class JDb(JDbReader):
             ValueError: invalid ret_type
         """
         ret_type_u = ret_type.upper()
-        if ret_type_u not in 'JMPS':
-            raise ValueError('date_type must be (J)son/(M)arshal/(P)ickle/M(S)gpack')
+        if ret_type_u not in 'JMPSY':
+            raise ValueError('date_type must be (J)son/(M)arshal/(P)ickle/M(S)gpack/(Y)aml')
 
         loads = g_VAL_J.loads if ret_type_u == 'J' else \
-            g_VAL_S.loads if ret_type_u == 'S' else \
             g_VAL_M.loads if ret_type_u == 'M' else \
-            g_VAL_P.loads
+            g_VAL_P.loads if ret_type_u == 'P' else \
+            g_VAL_S.loads if ret_type_u == 'S' else \
+            g_VAL_Y.loads
 
         return loads(data)
 

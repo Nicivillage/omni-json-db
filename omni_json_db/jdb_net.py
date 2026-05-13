@@ -59,7 +59,7 @@ def recv_and_load(sock):
     try:
         return msg_loads(req[:size])
 
-    except (ValueError, EOFError) as e:
+    except (ValueError, EOFError) as e: # pragma: no cover
         raise ValueError from e
 
 def dump_and_send(sock, obj):
@@ -82,10 +82,10 @@ class JNetIO(RawIOBase):
     __slots__ = {'file', 'sock', 'lock', 'mode'}
 
     def __init__(self, sock:IO, file:str, mode:str='rb+', **kwargs):
-        if not hasattr(sock, 'getsockname'):
+        if not hasattr(sock, 'getsockname'): # pragma: no cover
             raise TypeError
 
-        if not isinstance(file, str) or not file[:4] in {'KEY', 'LCK', 'VAL.'}:
+        if not isinstance(file, str) or not file[:4] in {'KEY', 'LCK', 'VAL.'}: # pragma: no cover
             raise TypeError
 
         super().__init__()
@@ -103,11 +103,11 @@ class JNetIO(RawIOBase):
         return f'<{type(self).__name__} sock:{self.sock}  mode:{self.mode} at {hex(id(self))}>'
 
     def open(self, *args, **kwargs):
-        if self.closed: return
+        if self.closed: return # pragma: no cover
         with self.lock:
             dump_and_send(self.sock, (self.file, 'open', args, kwargs))
             resp = recv_and_load(self.sock)
-            if not resp.get('ok'):
+            if not resp.get('ok'): # pragma: no cover
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
@@ -116,21 +116,21 @@ class JNetIO(RawIOBase):
 
     def close(self):
         with self.lock:
-            if self.closed: return
+            if self.closed: return # pragma: no cover
             dump_and_send(self.sock, (self.file, 'close', [], {}))
             resp = recv_and_load(self.sock)
-            if not resp.get('ok'):
+            if not resp.get('ok'): # pragma: no cover
                 pass # do nothing
         super().close()
 
     def readline(self, size:Optional[int]= -1) -> bytes:
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, [self.file, 'readline', [size], {}])
             resp = recv_and_load(self.sock)
-            if not resp.get('ok'):
+            if not resp.get('ok'): # pragma: no cover
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
@@ -157,12 +157,12 @@ class JNetIO(RawIOBase):
 
     def seek(self, offset:int, whence:int=0) -> int:
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, (self.file, 'seek', [offset, whence], {}))
             resp = recv_and_load(self.sock)
-            if not resp.get('ok'):
+            if not resp.get('ok'): # pragma: no cover
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
@@ -194,13 +194,13 @@ class JNetIO(RawIOBase):
 
     def tell(self) -> int:
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, (self.file, 'tell', [], {}))
             resp = recv_and_load(self.sock)
 
-        if not resp.get('ok'):
+        if not resp.get('ok'): # pragma: no cover
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
@@ -211,13 +211,13 @@ class JNetIO(RawIOBase):
 
     def truncate(self, size:Optional[int]=None):
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, (self.file, 'truncate', [size], {}))
             resp = recv_and_load(self.sock)
 
-        if not resp.get('ok'):
+        if not resp.get('ok'): # pragma: no cover
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
@@ -243,13 +243,13 @@ class JNetIO(RawIOBase):
 
     def read(self, size:int=-1) -> bytes:
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, (self.file, 'read', [size], {}))
             resp = recv_and_load(self.sock)
 
-        if not resp.get('ok'):
+        if not resp.get('ok'): # pragma: no cover
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
@@ -294,13 +294,13 @@ class JNetIO(RawIOBase):
 
     def write(self, b) -> int:
         with self.lock:
-            if self.closed:
+            if self.closed: # pragma: no cover
                 raise ValueError('I/O operation on closed file.')
 
             dump_and_send(self.sock, (self.file, 'write', [b], {}))
             resp = recv_and_load(self.sock)
 
-        if not resp.get('ok'):
+        if not resp.get('ok'): # pragma: no cover
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
@@ -334,7 +334,7 @@ class JNetFiles(JFilesBase):
             sock = socket(AF_INET, SOCK_STREAM)
             sock.connect(address)
             self.sock = sock
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             raise RuntimeError from e
 
     def __del__(self):

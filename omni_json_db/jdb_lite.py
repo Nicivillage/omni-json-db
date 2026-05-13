@@ -1487,7 +1487,6 @@ class JDbReader:
                                         key_fp = files_obj.KEY_open('ab+', buffering=KEY_FILE_BUF_SIZE)
                                     else:
                                         key_fp.flush()
-                                    
                                     if _cache and io.remv_id != io._remv_id:
                                         for kk in set(_cache).difference(io.key_table):
                                             _cache.pop(kk, 0)

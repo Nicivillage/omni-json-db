@@ -32,7 +32,7 @@ Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use
 ***********
 * **Deeply Pythonic**: Forget SQL! Interact with your database using standard Python ``dict`` methods, slicing, and even ``set`` operations. [refer to `Basic`_ + `Operator`_]
 
-* **Dynamic Serialization & Advanced Compression**: Mix and match JSON(``orjson``), MsgPack(``ormsgpack``), Marshal, and Pickle with advanced compression algorithms like LZ4, Zstandard (z1/z2/zs), Brotli, and Bzip2 to perfectly balance I/O speed and disk footprint. [refer to `Change Type`_ + `Supported Data Formats`_ + `Supported Zip Formats`_]
+* **Dynamic Serialization & Advanced Compression**: Mix and match JSON(``orjson``), MsgPack(``ormsgpack``), Marshal, Pickle and YAML with advanced compression algorithms like LZ4, Zstandard (z1/z2/zs), Brotli, and Bzip2 to perfectly balance I/O speed and disk footprint. [refer to `Change Type`_ + `Supported Data Formats`_ + `Supported Zip Formats`_]
 
 * **Powerful Query Engine**: Powerful Query Engine: Search effortlessly using Regular Expressions (Regex), Lambda filters (``jdb[lambda k, v: v > 10]``), and rich condition operators (``EQ``, ``GT``, ``LT``, ``IN``, ``HAS``, ``RE``). [refer to `Query`_]
 
@@ -632,10 +632,12 @@ Configure ``data_type`` during initialization:
 * ``J+S``: JSON Key + MsgPack Value (default)
 * ``J+M``: JSON Key + Marshal Value
 * ``J+P``: JSON Key + Pickle Value
+* ``J+Y``: JSON Key + YAML Value
 * ``S+J``: MsgPack Key + JSON Value
 * ``S+S``: MsgPack Key + MsgPack Value
 * ``S+M``: MsgPack Key + Marshal Value
 * ``S+P``: MsgPack Key + Pickle Value
+* ``S+Y``: MsgPack Key + YAML Value
 
 **Data size = 70,840,580 (MB = 1,000,000B, no zip)**
 
@@ -651,12 +653,19 @@ Configure ``data_type`` during initialization:
 |                   |            |       |          |           |* faster read   |* unreadable      |
 |                   |            |       |          |           |* faster write  |                  |
 +-------------------+------------+-------+----------+-----------+----------------+------------------+
-| ``J+M`` or ``S+M``| 72,430,958 | 0.97  | 81.4MB/s | 177.1MB/s |* all type [d]_ |* biggest size    |
+| ``J+M`` or ``S+M``| 72,430,958 | 0.97  | 81.4MB/s | 177.1MB/s |* all type [d]_ |* bigger size     |
 |                   |            |       |          |           |* fastest read  |* unreadable      |
+|                   |            |       |          |           |                |* security issue  |
 +-------------------+------------+-------+----------+-----------+----------------+------------------+
-| ``J+P`` or ``S+P``| 70,207,207 | 1.01  | 64.9MB/s | 22.8MB/s  |* all type [d]_ |* slowest read    |
-|                   |            |       |          |           |                |* slowest write   |
+| ``J+P`` or ``S+P``| 70,207,207 | 1.01  | 64.9MB/s | 22.8MB/s  |* all type [d]_ |* slower read     |
+|                   |            |       |          |           |                |* slower write    |
 |                   |            |       |          |           |                |* unreadable      |
+|                   |            |       |          |           |                |* security issue  |
++-------------------+------------+-------+----------+-----------+----------------+------------------+
+| ``J+Y`` or ``S+Y``| ~78,000,000| ~0.90 | ~25.0MB/s| ~15.0MB/s |* readable      |* biggest size    |
+|                   |            |       |          |           |                |* slowest read    |
+|                   |            |       |          |           |                |* slowest write   |
+|                   |            |       |          |           |                |* no tuple [a]_   |
 +-------------------+------------+-------+----------+-----------+----------------+------------------+
 
 .. [a] convert to ``list``

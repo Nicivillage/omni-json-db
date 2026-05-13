@@ -172,6 +172,12 @@ class TestJDb(unittest.TestCase):
             {'KEY_file':'db/test_10.jdb',    'api_ver':1, 'data_type':'S+P', 'zip_type':'no', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
             {'KEY_file':'db/test_10lz.jdb',  'api_ver':1, 'data_type':'S+P', 'zip_type':'lz', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
             {'KEY_file':'db/test_x10lz.jdb', 'api_ver':1, 'data_type':'S+P', 'zip_type':'lz', 'max_file_size' :     None, 'reserved_rate': 0.2, 'cache_limit':-1, 'min_value_size':128, 'index_size':128, 'key_limit':'l4'},
+
+            {'KEY_file':'db/test_11.jdb',    'api_ver':1, 'data_type':'J+Y', 'zip_type':'no', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
+            {'KEY_file':'db/test_11lz.jdb',  'api_ver':1, 'data_type':'J+Y', 'zip_type':'lz', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
+
+            {'KEY_file':'db/test_12.jdb',    'api_ver':1, 'data_type':'S+Y', 'zip_type':'no', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
+            {'KEY_file':'db/test_12lz.jdb',  'api_ver':1, 'data_type':'S+Y', 'zip_type':'lz', 'max_file_size' : 64 * 100, 'reserved_rate':None, 'cache_limit': 0, 'min_value_size': 16, 'index_size':256, 'key_limit':'--'},
         ]
 
         self.server1 = run_files_server('127.0.0.1', 59898, files='db/test_3n.jdb', verbose=0)
@@ -2463,7 +2469,7 @@ class TestJDb(unittest.TestCase):
 
             for data_str,zip_str in [
                     ('M+M','gz'), ('S+P','bz'),
-                    ('S+S','br'), ('L+J','lz')]:
+                    ('S+S','br'), ('L+J','lz'), ('J+Y', 'z1')]:
                 jdb.upgrade(data_type=data_str, zip_type=zip_str)
                 self.assertEqual(jdb, expect)
                 self.assertNotEqual(jdb.min_value_size, min_value_size)
@@ -3205,7 +3211,6 @@ class TestJDb(unittest.TestCase):
                 with jdb2.open(read_only=True) as fp:
                     self.assertTrue(jdb2.io.is_updated())
                     raise KeyboardInterrupt
-
 
             self.assertFalse(jdb2.is_latest())
             used_s = time.perf_counter() - st_time
@@ -5835,7 +5840,7 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(len(jmem.find(FUNC=lambda v:isinstance(v, dict))), total)
             self.assertEqual(len(jmem.find(FUNC=lambda k,v:k.startswith('key') and isinstance(v, dict))), total)
 
-            for data_type_str in ('L+J', 'J+J', 'M+M', 'J+P', 'S+S'):
+            for data_type_str in ('L+J', 'J+J', 'M+M', 'J+P', 'S+S', 'S+Y'):
                 for zip_type_str in ('no', 'gz', 'bz', 'xz', 'br', 'z1', 'lz'):
                     jmem.upgrade(zip_type=zip_type_str, data_type=data_type_str)
                     self.assertEqual(jmem, expect)
@@ -5971,21 +5976,23 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(val, jdb['test'])
             info = jdb.keys['test']
             file_id, offset, _row_size, val_size = info[1:5]
+            err_byte = b'\x00' if jdb.data_type.endswith('Y') else b'a'
+
             with jdb.files_obj.VAL_open(file_id, 'rb+') as fp:
                 fp.seek(offset)
-                fp.write(b'a' * val_size)
+                fp.write(err_byte * val_size)
 
             try:
                 ret = jdb1['test']
                 self.assertNotEqual(val, ret)
-
+                jdb1['test'] = val
             except:
                 jdb1['test'] = val
 
             self.assertEqual(val, jdb['test'])
             with jdb.files_obj.VAL_open(file_id, 'rb+') as fp:
                 fp.seek(offset)
-                fp.write(b'a' * val_size)
+                fp.write(err_byte * val_size)
 
             del jdb['test']
             self.assertEqual(len(jdb), 0)
@@ -5997,7 +6004,7 @@ class TestJDb(unittest.TestCase):
                 header = fp.read(512)
                 self.assertGreaterEqual(len(header), 128)
                 fp.seek(0)
-                fp.write(b'a' * len(header))
+                fp.write(err_byte * len(header))
                 jdb.io.file_size = 0
 
             with self.assertRaises(ValueError):
@@ -6010,7 +6017,7 @@ class TestJDb(unittest.TestCase):
             self.assertEqual(len(jdb.get_all()), 0)
 
             with jdb.files_obj.KEY_open('wb') as fp:
-                fp.write(b'a' * len(header))
+                fp.write(err_byte * len(header))
                 jdb.io.file_size = 0
 
             jdb.clear(agree='yes', wait_sec=0, data_type='J+S', api_ver=0)
