@@ -7,6 +7,9 @@ on:
     paths: 
       - 'omni_json_db/**'
       - '.github/workflows/pylint.yml'
+
+permissions:
+  contents: read
     
 jobs:
   build:
