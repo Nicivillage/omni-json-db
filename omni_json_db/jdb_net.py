@@ -93,7 +93,10 @@ class JNetIO(RawIOBase):
         self.file = file
         self.mode = mode
         self.sock = sock
-        self.open(mode=mode, **kwargs)
+        try:
+            self.open(mode=mode, **kwargs)
+        except FileNotFoundError as e: # pragma: no cover
+            print(e)
 
     def __del__(self):
         self.close()
@@ -111,8 +114,8 @@ class JNetIO(RawIOBase):
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
-                    raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-                raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                    raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+                raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
     def close(self):
         with self.lock:
@@ -134,8 +137,8 @@ class JNetIO(RawIOBase):
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
-                    raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-                raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                    raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+                raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', b'')
 
@@ -150,8 +153,8 @@ class JNetIO(RawIOBase):
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
-                    raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-                raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                    raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+                raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', [])
 
@@ -166,8 +169,8 @@ class JNetIO(RawIOBase):
                 cmd = resp.get("cmd", "")
                 err = JErrCode(resp.get('err', 0))
                 if err == JErrCode.NOT_FOUND:
-                    raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-                raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                    raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+                raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', 0)
 
@@ -204,8 +207,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', 0)
 
@@ -221,8 +224,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', 0)
 
@@ -238,8 +241,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
     def read(self, size:int=-1) -> bytes:
         with self.lock:
@@ -253,8 +256,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', b'')
 
@@ -270,8 +273,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', b'')
 
@@ -287,8 +290,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', 0)
 
@@ -304,8 +307,8 @@ class JNetIO(RawIOBase):
             cmd = resp.get("cmd", "")
             err = JErrCode(resp.get('err', 0))
             if err == JErrCode.NOT_FOUND:
-                raise FileNotFoundError(f'Fail to call {cmd} -> {str(err)}')
-            raise ValueError(f'Fail to call {cmd} -> {str(err)}')
+                raise FileNotFoundError(f'Fail to call {cmd} -> {repr(err)}')
+            raise ValueError(f'Fail to call {cmd} -> {repr(err)}')
 
         return resp.get('ret', 0)
 

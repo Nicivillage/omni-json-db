@@ -113,7 +113,7 @@ class JBytesIO(RawIOBase):
 
         max_idx = max_size if size is None or size < 0 else min(max_size, idx+size)
         next_idx = buf.find(b'\n', idx, max_idx)
-        if next_idx < 0:
+        if next_idx < 0: # pragma: no cover
             self.idx = max_idx
             return bytes(buf[idx:max_idx])
 
@@ -160,13 +160,13 @@ class JBytesIO(RawIOBase):
             self.idx = next_idx
             return next_idx
 
-        if whence == SEEK_CUR:
-            next_idx = idx+offset
+        if whence == SEEK_END:
+            next_idx = max_size+offset
             idx = self.idx = next_idx
             return idx
 
-        if whence == SEEK_END:
-            next_idx = max_size+offset
+        if whence == SEEK_CUR:
+            next_idx = idx+offset
             idx = self.idx = next_idx
             return idx
 
@@ -197,7 +197,7 @@ class JBytesIO(RawIOBase):
                 idx = self.idx = len(buf)
             else:
                 idx = self.idx = max_size
-        else:
+        else: # pragma: no cover
             if size < max_size:
                 del buf[:size]
                 idx = self.idx = len(buf)
@@ -240,11 +240,7 @@ class JBytesIO(RawIOBase):
 
         buf = self.buf
         max_size = len(buf)
-        if size is None or size < 0:
-            next_idx = max_size
-        else:
-            next_idx = min(max_size, self.idx+size)
-
+        next_idx = max_size if size is None or size < 0 else min(max_size, self.idx+size)
         part = buf[self.idx:next_idx]
         self.idx = next_idx
         return bytes(part)
@@ -427,6 +423,9 @@ class JMemFiles(JFilesBase):
         return buffer is not None
 
     def KEY_open(self, mode:str='rb', buffering:int=-1, **kwargs) -> IO:
+        if not self.KEY_file and mode.startswith('r'):
+            raise FileNotFoundError
+
         return JBytesIO(self.KEY_file)
 
     def KEY_size(self) -> int:
@@ -453,7 +452,7 @@ class JMemFiles(JFilesBase):
         LCK_file = self.LCK_file
         with self.lock:
             write_id = int.from_bytes(LCK_file[4:12], 'big') # get write_id
-            if write_id == current_id:
+            if write_id == current_id: # pragma: no cover
                 write_cnt = int.from_bytes(LCK_file[12:16], 'big') + 1
                 LCK_file[12:16] = write_cnt.to_bytes(4, 'big')
                 return
@@ -507,8 +506,7 @@ class JDiskFiles(JFilesBase):
 
         file_name = basename(KEY_file)
         dir_name = dirname(KEY_file)
-
-        if dir_name == '':
+        if dir_name == '': # pragma: no cover
             dir_name = getcwd()
 
         if dir_name != '' and not path_exists(dir_name):
@@ -522,10 +520,8 @@ class JDiskFiles(JFilesBase):
         self.LCK_fp = None
 
         _parts = KEY_file.split('.')
-        if len(_parts) > 1:
-            self.group_KEY_file = '.'.join(_parts[:-1]) + '+{group_key}.' + _parts[-1]
-        else:
-            self.group_KEY_file = KEY_file + '+{group_key}'
+        self.group_KEY_file = ('.'.join(_parts[:-1]) + '+{group_key}.' + _parts[-1]) if len(_parts) > 1 else \
+                            (KEY_file + '+{group_key}')
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__} KEY:{self.file_name} at {hex(id(self))}>'

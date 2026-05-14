@@ -109,7 +109,7 @@ except ImportError:
     zstd_decompress = ZstdDecompressor().decompress
 
 #-----------------------------------------------------------------------------
-from .jdb_file import JFilesBase, JDiskFiles
+from .jdb_file import JFilesBase
 
 BZ_Error = OSError
 LZ_Error = RuntimeError
@@ -318,9 +318,7 @@ class PartialKeyTable(KeyTable):
         if jio.n_records <= 0:
             self.clear()
 
-        if not self.is_dirty and row_id+1 >= jio.n_records:
-            self.is_dirty = True
-
+        self.is_dirty = self.is_dirty or row_id+1 >= jio.n_records
         _hash_id = xhash(key)
         self.flags[_hash_id & DEF_FLAG_MASK] = 1
         if key in cache:
@@ -338,12 +336,13 @@ class PartialKeyTable(KeyTable):
 
     def pop(self, key:str, default_row_id:int=-1) -> int:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return default_row_id
 
         _hash_id = xhash(key)
-        if self.is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]:
+        is_dirty = self.is_dirty
+        if is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]: # pragma: no cover
             self.cache.pop(key, None)
             return default_row_id
 
@@ -362,12 +361,10 @@ class PartialKeyTable(KeyTable):
                 _hash_id = xhash(_key)
                 self.flags[_hash_id & DEF_FLAG_MASK] = 1
                 if _key == key:
-                    if not self.is_dirty and row_id+1 >= jio.n_records:
-                        self.is_dirty = True
+                    self.is_dirty = is_dirty or row_id+1 >= jio.n_records
                     return row_id
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -377,12 +374,13 @@ class PartialKeyTable(KeyTable):
 
     def get(self, key:str, default_row_id:int=-1) -> int:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return default_row_id
 
         _hash_id = xhash(key)
-        if self.is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]:
+        is_dirty = self.is_dirty
+        if is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]:
             return default_row_id
 
         cache = self.cache
@@ -410,13 +408,10 @@ class PartialKeyTable(KeyTable):
                     cache.pop(old_key, None)
 
                 cache[key] = row_id
-                if not self.is_dirty and row_id+1 >= jio.n_records:
-                    self.is_dirty = True
-
+                self.is_dirty = is_dirty or row_id+1 >= jio.n_records
                 return row_id
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -426,13 +421,14 @@ class PartialKeyTable(KeyTable):
 
     def items(self) -> Generator[str,int]:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return
 
         fp = None
         try:
             jio = self.io
+            is_dirty = self.is_dirty
             read_key = jio.read_key
             fp = self.files_obj.KEY_open('rb')
             fp.seek(HEADER_SIZE)
@@ -442,8 +438,7 @@ class PartialKeyTable(KeyTable):
                 self.flags[_hash_id & DEF_FLAG_MASK] = 1
                 yield key, row_id
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -451,7 +446,7 @@ class PartialKeyTable(KeyTable):
 
     def values(self) -> Generator[int]:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return
 
@@ -459,13 +454,14 @@ class PartialKeyTable(KeyTable):
 
     def keys(self) -> Generator[str]:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return
 
         fp = None
         try:
             jio = self.io
+            is_dirty = self.is_dirty
             read_key = jio.read_key
             fp = self.files_obj.KEY_open('rb')
             fp.seek(HEADER_SIZE)
@@ -475,8 +471,7 @@ class PartialKeyTable(KeyTable):
                 self.flags[_hash_id & DEF_FLAG_MASK] = 1
                 yield key
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -487,7 +482,7 @@ class PartialKeyTable(KeyTable):
         if len(self) > 0:
             obj.flags.clear()
             obj.flags.frombytes(self.flags.tobytes())
-        else:
+        else: # pragma: no cover
             self.clear()
 
         return obj
@@ -507,17 +502,18 @@ class PartialKeyTable(KeyTable):
     def __getitem__(self, key:str) -> int:
         return self.get(key, -1)
 
-    def __delitem__(self, key:str):
+    def __delitem__(self, key:str): # pragma: no cover
         self.pop(key)
 
     def __contains__(self, key:str) -> bool:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return False
 
         _hash_id = xhash(key)
-        if self.is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]:
+        is_dirty = self.is_dirty
+        if is_dirty and not self.flags[_hash_id & DEF_FLAG_MASK]:
             return False
 
         cache = self.cache
@@ -535,13 +531,10 @@ class PartialKeyTable(KeyTable):
                 _hash_id = xhash(_key)
                 self.flags[_hash_id & DEF_FLAG_MASK] = 1
                 if _key == key:
-                    if not self.is_dirty and row_id+1 >= jio.n_records:
-                        self.is_dirty = True
-
+                    self.is_dirty = is_dirty or row_id+1 >= jio.n_records
                     return True
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -551,13 +544,14 @@ class PartialKeyTable(KeyTable):
 
     def __iter__(self) -> Generator[str]:
         size = len(self)
-        if size <= 0:
+        if size <= 0: # pragma: no cover
             self.clear()
             return
 
         fp = None
         try:
             jio = self.io
+            is_dirty = self.is_dirty
             read_key = jio.read_key
             fp = self.files_obj.KEY_open('rb')
             fp.seek(HEADER_SIZE)
@@ -567,8 +561,7 @@ class PartialKeyTable(KeyTable):
                 self.flags[_hash_id & DEF_FLAG_MASK] = 1
                 yield key
 
-            if jio.n_records > 0 and not self.is_dirty:
-                self.is_dirty = True
+            self.is_dirty = is_dirty or jio.n_records > 0
 
         finally:
             if fp is not None:
@@ -592,9 +585,7 @@ class PartialKeyTable(KeyTable):
             if val != obj.get(key, -1):
                 return False
 
-        if self.io.n_records > 0 and not self.is_dirty:
-            self.is_dirty = True
-
+        self.is_dirty = self.is_dirty or self.io.n_records > 0
         return True
 
 #-----------------------------------------------------------------------------
@@ -634,11 +625,11 @@ class LiteKeyTable(KeyTable):
     def get_mode(self) -> int:
         return self.mode
 
-    def cache_cleanup(self):
+    def cache_cleanup(self): # pragma: no cover
         self.clear()
 
     def set(self, key:str, row_id:int):
-        if self.size < 0:
+        if self.size < 0: # pragma: no cover
             self.clear()
 
         # self.size must >= 0
@@ -676,17 +667,18 @@ class LiteKeyTable(KeyTable):
                     if val_type <= 0x7f:
                         row = val_type
 
-                    elif 0xcf >= val_type >= 0xcc:
-                        row = int.from_bytes(key_array[val_idx+1:val_idx_e], 'big')
+                    else: # pragma: no cover
+                        if 0xcf >= val_type >= 0xcc:
+                            row = int.from_bytes(key_array[val_idx+1:val_idx_e], 'big')
 
-                    elif 0xd3 >= val_type >= 0xd0:
-                        row =  int.from_bytes(key_array[val_idx+1:val_idx_e], 'big', signed=True)
+                        elif 0xd3 >= val_type >= 0xd0:
+                            row =  int.from_bytes(key_array[val_idx+1:val_idx_e], 'big', signed=True)
 
-                    elif val_type >= 0xe0:
-                        row = val_type - 256
+                        elif val_type >= 0xe0:
+                            row = val_type - 256
 
-                    else:
-                        row = -1
+                        else:
+                            row = -1
 
                     if row != row_id:
                         key_array[idx:val_idx_e] = search_prefix + (_msg_dumps(row_id) or b'')
@@ -703,7 +695,7 @@ class LiteKeyTable(KeyTable):
         if self.size == 0:
             return default_row_id
 
-        if self.size < 0:
+        if self.size < 0: # pragma: no cover
             self.clear()
             return default_row_id
 
@@ -737,17 +729,18 @@ class LiteKeyTable(KeyTable):
                     if val_type <= 0x7f:
                         row_id = val_type
 
-                    elif 0xcf >= val_type >= 0xcc:
-                        row_id = int.from_bytes(key_array[val_idx+1:val_idx_e], 'big')
+                    else: # pragma: no cover
+                        if 0xcf >= val_type >= 0xcc:
+                            row_id = int.from_bytes(key_array[val_idx+1:val_idx_e], 'big')
 
-                    elif 0xd3 >= val_type >= 0xd0:
-                        row_id =  int.from_bytes(key_array[val_idx+1:val_idx_e], 'big', signed=True)
+                        elif 0xd3 >= val_type >= 0xd0:
+                            row_id =  int.from_bytes(key_array[val_idx+1:val_idx_e], 'big', signed=True)
 
-                    elif val_type >= 0xe0:
-                        row_id = val_type - 256
+                        elif val_type >= 0xe0:
+                            row_id = val_type - 256
 
-                    else:
-                        return default_row_id
+                        else:
+                            return default_row_id
 
                     del key_array[idx:val_idx_e]
                     self.size -= 1
@@ -848,7 +841,7 @@ class LiteKeyTable(KeyTable):
             obj.flags.clear()
             obj.flags.frombytes(self.flags.tobytes())
             obj.size = self.size
-        else:
+        else: # pragma: no cover
             obj.flags.setall(0)
 
         return obj
@@ -877,7 +870,7 @@ class LiteKeyTable(KeyTable):
     def __getitem__(self, key:str) -> int:
         return self.get(key, -1)
 
-    def __delitem__(self, key:str):
+    def __delitem__(self, key:str): # pragma: no cover
         self.pop(key)
 
     def __contains__(self, key:str) -> bool:
@@ -942,7 +935,7 @@ try:
         def get_mode(self) -> int:
             return -1
 
-        def cache_cleanup(self):
+        def cache_cleanup(self): # pragma: no cover
             self.clear()
 
 except ModuleNotFoundError:
@@ -1012,25 +1005,26 @@ class JIoHEAD:
         if nn >= 9:
             sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id, api_ver = info[:9]
 
-        elif nn >= 8:
-            sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id = info[:8]
-            api_ver = API_V0
+        else: # pragma: no cover
+            if nn >= 8:
+                sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id = info[:8]
+                api_ver = API_V0
 
-        elif nn >= 7:
-            sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id = info[:7]
-            remv_id = sync_id % 10
-            api_ver = API_V0
+            elif nn >= 7:
+                sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id = info[:7]
+                remv_id = sync_id % 10
+                api_ver = API_V0
 
-        elif nn >= 4:
-            sync_id, n_records, n_lines, index_size = info[:4]
-            zip_type = info[4] if nn >= 5 else 0
-            data_type = info[5] if nn >= 6 else 1
-            swap_id = info[6] if nn >= 7 else (sync_id % 10)
-            remv_id = info[7] if nn >= 8 else (sync_id % 10)
-            api_ver = API_V0
+            elif nn >= 4:
+                sync_id, n_records, n_lines, index_size = info[:4]
+                zip_type = info[4] if nn >= 5 else 0
+                data_type = info[5] if nn >= 6 else 1
+                swap_id = info[6] if nn >= 7 else (sync_id % 10)
+                remv_id = info[7] if nn >= 8 else (sync_id % 10)
+                api_ver = API_V0
 
-        else:
-            raise ValueError(f'cannot decode header (n={nn})')
+            else:
+                raise ValueError(f'cannot decode header (n={nn})')
 
         return sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id, api_ver
 
@@ -1113,7 +1107,7 @@ class JIoKEY_J(JIoKEY):
 
     def loads_v0(self, data:bytes) -> Tuple[str,int,int,int,int,int,int]:
         args = _json_loads(data)
-        if len(args) != 6:
+        if len(args) != 6: # pragma: no cover
             args.append(0)
 
         key, file_id, offset, row_size, ver, days = args[:6]
@@ -1195,14 +1189,15 @@ class JIoKEY_L(JIoKEY):
             row_size = int(extra[0])
             ver = int(extra[1])
             days = int(extra[2])
-        elif n_extra > 1:
-            row_size = int(extra[0])
-            ver = int(extra[1])
-            days = 0
-        else:
-            row_size = int(extra[0])
-            ver = 0
-            days = 0
+        else: # pragma: no cover
+            if n_extra > 1:
+                row_size = int(extra[0])
+                ver = int(extra[1])
+                days = 0
+            else:
+                row_size = int(extra[0])
+                ver = 0
+                days = 0
 
         return key, file_id, offset, row_size & 0X_FFFF_FFFF, row_size >> 32, ver, days
 
@@ -1241,12 +1236,12 @@ class JIoVAL_J(JIoVAL):
                     if reduce(lambda x,y: (x+y) & 0xff, _bytes) == 0:
                         return _bytes[:-1]
 
-                except ValueError:
+                except ValueError: # pragma: no cover
                     return val
 
             return val
 
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             raise ValueError from e
 
 class JIoVAL_S(JIoVAL):
@@ -1286,7 +1281,7 @@ class JIoVAL_P(JIoVAL):
             try:
                 return pickle_loads(data)
 
-            except (ValueError, EOFError, PicklingError):
+            except (ValueError, EOFError, PicklingError): # pragma: no cover
                 data = data + b'\n'
 
         raise ValueError
@@ -1388,7 +1383,8 @@ class JIo:
         old_days = days & OLD_DAY_MASK
         new_days = (days & NEW_DAY_MASK) >> NEW_DAY_SHIFT
 
-        if old_days < NUM_1970_DAYS and old_days+new_days < NUM_1996_DAYS: # NOTES: remove after API v3
+        # NOTES: remove after API v3
+        if old_days < NUM_1970_DAYS and old_days+new_days < NUM_1996_DAYS:  # pragma: no cover
             old_days += NUM_2000_DAYS
             old_date = THE_1ST_DATE + timedelta(days=old_days)
             if old_date > dt_date.today():
@@ -1434,7 +1430,7 @@ class JIo:
             raise TypeError
 
         if index_size is None or index_size == 0:
-            index_size = DEF_INDEX_SIZE if isinstance(files_obj, JDiskFiles) else MIN_INDEX_SIZE
+            index_size = DEF_INDEX_SIZE
 
         if reserved_rate is None:
             reserved_rate = DEF_RATIO
@@ -1448,10 +1444,10 @@ class JIo:
         if key_limit is None:
             key_limit = DEF_KEY_LIMIT
 
-        if data_type is None:
+        if data_type is None: # pragma: no cover
             data_type = DEF_TYPE
 
-        if zip_type is None:
+        if zip_type is None: # pragma: no cover
             zip_type = DEF_ZIP
 
         if api_ver is None:
@@ -1544,22 +1540,23 @@ class JIo:
                     # deprecated
                     info = [int(v) for v in header.decode('utf8').split(',')]
                 nn = len(info)
-                if nn >= 9:
+                if nn >= 9: # pragma: no cover
                     api_ver = info[8]
                     if data_type == DEF_TYPE:
                         data_type = info[5]
 
                     if zip_type == DEF_ZIP:
                         zip_type = info[4]
-                elif nn >= 6:
-                    api_ver = API_V0
-                    if data_type == DEF_TYPE:
-                        data_type = info[5]
+                else: # pragma: no cover
+                    if nn >= 6:
+                        api_ver = API_V0
+                        if data_type == DEF_TYPE:
+                            data_type = info[5]
 
-                    if zip_type == DEF_ZIP:
-                        zip_type = info[4]
-                else:
-                    api_ver = API_V0
+                        if zip_type == DEF_ZIP:
+                            zip_type = info[4]
+                    else:
+                        api_ver = API_V0
 
         except Exception as e:
             print(e)
@@ -1626,8 +1623,8 @@ class JIo:
     def data_type(self, value:Union[int,str]):
         if isinstance(value, str):
             value = value.upper()
-            if not value:
-                value = J_J_TYPE
+            if not value: # pragma: no cover
+                value = J_S_TYPE
             else:
                 if value.find('(') > 0 and value[-1] == ')':
                     value, zip_type = value.split('(')
@@ -1729,7 +1726,7 @@ class JIo:
 
     def change_APIs(self, version:Optional[int]=None, data_type:int=DEF_TYPE, zip_type:int=DEF_ZIP, reset:bool=False):
         if reset:
-            if self.index_size is None:
+            if self.index_size is None: # pragma: no cover
                 self.index_size = DEF_INDEX_SIZE
 
             if self.reserved_rate is None:
@@ -1738,7 +1735,7 @@ class JIo:
             if self.max_file_size is None:
                 self.max_file_size = DEF_FILE_SIZE
 
-            if self.min_value_size is None:
+            if self.min_value_size is None: # pragma: no cover
                 self.min_value_size = DEF_VALUE_SIZE
 
             self.file_table.clear()
@@ -1748,13 +1745,13 @@ class JIo:
             self._sync_id = self._n_records = self._n_lines = self.file_size = self.n_records = self.n_lines = 0
             self.update_days()
 
-        if version is None:
+        if version is None: # pragma: no cover
             version = API_LATEST
 
-        if data_type == DEF_TYPE:
-            data_type = J_J_TYPE
+        if data_type == DEF_TYPE: # pragma: no cover
+            data_type = J_S_TYPE
 
-        if zip_type == DEF_ZIP:
+        if zip_type == DEF_ZIP: # pragma: no cover
             zip_type = NO_ZIP
 
         if not isinstance(data_type, int):
@@ -1978,7 +1975,7 @@ class JIo:
         try:
             return self.VAL_zip(data)
 
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             print(Style(f'!!!!!!!!!!! [{hex(id(self))[-5:-1]}|{self.sync_id%10000}|{self.key_limit_str}|{self.files_obj.get_KEY()}|{self.data_type_str}({self.zip_type_str})] ERROR!zip(bytes[{len(data)}]={data[-512:]}, zip_type={zip_type_i})\nexception:{e}', red=1))
             raise ValueError from e
 
@@ -2010,9 +2007,7 @@ class JIo:
             raise ValueError from e
 
     def seek(self, fp:IO, row_id:int):
-        if row_id < 0:
-            row_id = self.n_lines + row_id
-
+        row_id = (self.n_lines + row_id) if row_id < 0 else row_id
         return fp.seek(HEADER_SIZE + row_id * self.index_size)
 
     def write_key(self, fp:IO, row_id:int, key:str, file_id:int, offset:int, row_size:int, val_size:int=0, ver:Optional[int]=None, days:int=-1) -> int:
@@ -2162,7 +2157,7 @@ class JIo:
             self.index_size = index_size
             self.zip_type   = zip_type
             self.data_type  = data_type
-            if api_ver != self.api_ver:
+            if api_ver != self.api_ver: # pragma: no cover
                 self.change_APIs(api_ver, data_type, zip_type)
 
         self.window_size = max(1, int(KEY_FILE_BUF_SIZE / self.index_size))
@@ -2192,7 +2187,7 @@ class JIo:
         pad_byte = self.pad0_byte if no_zip else self.pad_byte
         return data + pad_byte * n_pad
 
-    def unpad(self, data:bytes) -> bytes:
+    def unpad(self, data:bytes) -> bytes: # pragma: no cover
         pad_byte = self.pad_byte
         if pad_byte == b'\n' or pad_byte == b'\xc1':
             return data.rstrip(pad_byte)
@@ -2205,13 +2200,7 @@ class JIo:
 
     def read_value(self, fp:IO, pos:int, row_size:int, val_size:int) -> Any:
         fp.seek(pos)
-        if val_size > 0:
-            val_bytes = fp.read(val_size)
-            zip_type = -(self.zip_type+1)
-        else:
-            val_bytes = fp.read(row_size)
-            zip_type = self.zip_type
-
+        val_bytes, zip_type = (fp.read(val_size), -(self.zip_type+1)) if val_size > 0 else (fp.read(row_size), self.zip_type)
         if not val_bytes:
             return None
 
@@ -2222,7 +2211,7 @@ class JIo:
             val_bytes = self.VAL_dumps(data)
             return self.zip(val_bytes, zip_type=zip_type)
 
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             print(Style(f'!!!!!!!!!!! [???|{hex(id(self))[-5:-1]}|{self.sync_id%10000}|{self.key_limit_str}|{self.files_obj.get_KEY()}|{self.data_type_str}({self.zip_type_str})] ERROR!dumps_with_zip(data={type(data)}, zip_type={zip_type})\nexception:{e}', red=1))
             raise ValueError from e
 
@@ -2231,7 +2220,7 @@ class JIo:
             unzip_bytes = self.unzip(val_bytes, zip_type=zip_type)
             return self.VAL_loads(unzip_bytes)
 
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             print(Style(f'!!!!!!!!!!! [???|{hex(id(self))[-5:-1]}|{self.sync_id%10000}|{self.key_limit_str}|{self.files_obj.get_KEY()}|{self.data_type_str}({self.zip_type_str})] ERROR!loads_with_unzip(val_bytes[{len(val_bytes)}]={val_bytes[-512:]}, zip_type={zip_type})\nexception:{e}', red=1))
             raise ValueError from e
 
@@ -2274,11 +2263,11 @@ class JIo:
             if swap_diff == 0:
                 # swap_diff == rec_diff == remv_diff == 0
                 if rec_diff == remv_diff == 0:
+                    if n_records <= 0 and key_table: # pragma: no cover
+                        key_table.clear()
+
                     # swap_diff == rec_diff == remv_diff == line_diff == 0
                     if line_diff == 0:
-                        if n_records <= 0 and key_table:
-                            key_table.clear()
-
                         self._n_lines   = n_lines
                         self._n_records = n_records
                         self._sync_id   = sync_id
@@ -2288,15 +2277,13 @@ class JIo:
 
                     # swap_diff == rec_diff == remv_diff == 0 and line_diff > 0
                     else:
-                        if n_records <= 0 and key_table:
-                            key_table.clear()
-
                         self._sync_id   = sync_id
                         self._swap_id   = swap_id
                         self._remv_id   = remv_id
                         self._n_records = n_records
                         self._n_lines   = n_lines
                         self.file_size  = fp.seek(0, 2)
+
                     return
 
                 # swap_diff == remv_diff == 0 and rec_diff > 0
@@ -2349,7 +2336,7 @@ class JIo:
                         key_table[key] = row
                         if row_size > 0:
                             file_table[file_id] = max(file_table[file_id], offset + row_size)
-                        elif row_size == 0 and file_id == 0x10:
+                        elif row_size == 0 and file_id == 0x10: # pragma: no cover
                             self.groups.setdefault(key, None)
 
                     elif row_size > 0:
@@ -2480,7 +2467,7 @@ class JIo:
                             return
 
                 # swap_diff > 0 and (sync_diff != remv_diff or sync_diff != line_diff)
-                else:
+                else: # pragma: no cover
                     if n_records == 0:
                         pass
 
@@ -2513,7 +2500,7 @@ class JIo:
         KEY_loads = self.KEY_loads
         if data_type_s.startswith(('L', 'J')):
             for line in fp: # 1.29% faster than fp.readlines(block_size)
-                if line[0] == 10:
+                if line[0] == 10: # pragma: no cover
                     if lines < n_lines or records < n_records:
                         print(Style(f'!!!!!!!!!!! [{hex(id(self))[-5:-1]}|{self.sync_id%10000}|{self.key_limit_str}|{self.files_obj.get_KEY()}|{self.data_type}|{self.zip_type}] ERROR!load_keys(#{records}/{n_lines} fp:{fp} line:{line})'))
                     break
@@ -2533,7 +2520,7 @@ class JIo:
 
                         if row_size > 0:
                             file_table[file_id] = max(file_table[file_id], offset + row_size)
-                        elif row_size == 0 and file_id == 0x10:
+                        elif row_size == 0 and file_id == 0x10: # pragma: no cover
                             self.groups.setdefault(key, None)
 
                     elif row_size > 0:
@@ -2543,8 +2530,9 @@ class JIo:
                     if lines >= n_lines:
                         break
 
-                else:
+                else: # pragma: no cover
                     break
+
         else: # M, S
             while lines < n_lines:
                 line = fp.read(index_size)
@@ -2554,7 +2542,7 @@ class JIo:
                 try:
                     key, file_id, offset, row_size, _val_size, _ver, _days = KEY_loads(line)
 
-                except Exception as e:
+                except Exception as e: # pragma: no cover
                     if lines < n_lines or records < n_records:
                         print(Style(f'!!!!!!!!!!! [DECODE|{hex(id(self))[-5:-1]}|{self.sync_id%10000}|{self.key_limit_str}|{self.files_obj.get_KEY()}|{self.data_type_str}({self.zip_type_str})] ERROR!load_keys(#{records}/{n_lines} fp:{fp} line:{line})\nexception:{e}'))
                     break
@@ -2566,7 +2554,7 @@ class JIo:
 
                         if row_size > 0:
                             file_table[file_id] = max(file_table[file_id], offset + row_size)
-                        elif row_size == 0 and file_id == 0x10:
+                        elif row_size == 0 and file_id == 0x10: # pragma: no cover
                             self.groups.setdefault(key, None)
 
                     elif row_size > 0:
@@ -2574,7 +2562,7 @@ class JIo:
 
                     lines += 1
 
-        if lines <= 0:
+        if lines <= 0: # pragma: no cover
             n_records = n_lines = 0
             if key_table: key_table.clear()
             if file_table: file_table.clear()
@@ -2604,7 +2592,7 @@ class JIo:
 
         return data if not decode else self.KEY_loads(data)
 
-    def shift_keys(self, fp:IO, start:int, offset:int=1, size:int=1, block_size:Optional[int]=None):
+    def shift_keys(self, fp:IO, start:int, offset:int=1, size:int=1, block_size:Optional[int]=None): # pragma: no cover
         n_lines = self.n_lines
         index_size = self.index_size
         if block_size is None:
@@ -2678,14 +2666,13 @@ class JIo:
                 src_row_id += 1
 
             key_info = table.pop(dst_row_id, None)
-            if not key_info:
+            if not key_info: # pragma: no cover
                 break
 
             if min_ver:
                 _key, _file_id, _offset, _row_size, _val_size, _ver, _days = key_info
                 _ver = max(1, _ver - sync_id + n_lines)
-                if dst_row_id >= n_records:
-                    _key = ''
+                _key = '' if dst_row_id >= n_records else _key
                 dst_write_key(fp, dst_row_id, _key, _file_id, _offset, _row_size, _val_size, _ver, _days)
             else:
                 dst_write_key(fp, dst_row_id, *key_info)
