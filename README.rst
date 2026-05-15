@@ -22,9 +22,9 @@
 ***************
 ``omni-json-db`` is a high-performance, embedded database engine designed for Python developers. It bridges the gap between the extreme speed of a Key-Value store and the powerful querying capabilities of a document database.
 
-Built for extreme throughput and thread-safety, ``omni-json-db`` leverages modern serialization (``JSON``, ``MsgPack``, ``marshal``, ``pickle``, ``YAML``) and compression to provide a storage layer that is often significantly faster than SQLite for JSON-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, ``omni-json-db`` provides the tools to handle data at scale with "Zero-Config" simplicity.
+Built for ultra-high throughput and thread-safety, ``omni-json-db`` leverages modern serialization (``JSON``, ``MsgPack``, ``marshal``, ``pickle``, ``YAML``) and compression to provide a storage layer that is often significantly faster than SQLite for JSON-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, ``omni-json-db`` provides the tools to handle data at scale with "Zero-Config" simplicity.
 
-Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use native Python syntax (slicing, Lambdas, Regex, ``Set`` operations) to query and manipulate data. It also features built-in "Time-Travel", state rollbacks (Undo/Redo), and extreme compression capabilities.
+Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use native Python syntax (slicing, Lambdas, Regex, Set operations) to query and manipulate data. It also features built-in "Time-Travel", state rollbacks (Undo/Redo).
 
 * **Schema-LESS**: Store complex, nested data without pre-defining tables.
 
@@ -44,7 +44,7 @@ Unlike traditional SQLite or NoSQL databases, ``omni-json-db`` allows you to use
 
 * **Network Mode** (``JNetFiles``): Transform a local ``omni-json-db`` instance into a networked service with a single command using ``run_files_server()``. [refer to `Network`_]
 
-* **In-Memory Mode** (``JMemFiles``): Run the entire database in RAM for extreme performance (ideal for real-time caches or volatile session storage). [refer to `In-memory`_]
+* **In-Memory Mode** (``JMemFiles``): Run the entire database in RAM for high performance (ideal for real-time caches or volatile session storage). [refer to `In-memory`_]
 
 * **"Time-Travel" & Rollbacks**: The database tracks internal states, allowing you to undo modifications (``unmodify()``) or recover deleted data (``unremove()``). Accidentally deleted a record? One line of code brings it back. [refer to `Rollback`_ + `Backup & Restore`_]
 
@@ -128,15 +128,18 @@ Query
    # Key-Value is Json+Marshal with no compression
    jdb = JDb(data_type="J+M")
    
-   # insert value without key
+   # insert many records without key
    jdb += [{'name': 'John', 'age': 22}, {'name': 'John', 'age': 37}, \
             {'name': 'Bob', 'age': 42}, {'name': 'Megan', 'age': 27}]
    
+   # get all records from database
    print(jdb[:]) # print all records from jdb
 
-   matches = jdb.find(FUNC=lambda k,v: v.get('name', '') == 'John') 
+   # Use FUNCTION to find record(s) matching the name 'John'
+   matches = jdb.find(FUNC=lambda key,val: val['name'] == 'John') 
    print(matches) # Output : {'0': {'name': 'John', 'age': 22}, '1': {'name': 'John', 'age': 37}}
    
+   # Use Regex to find record(s) matching the name 'John' or 'Bob'
    matches = jdb.find(RE='John|Bob')
    print(matches) # {'0': {'name': 'John', 'age': 22}, '1': {'name': 'John', 'age': 37}, '2': {'name': 'Bob', 'age': 42}}   
 
@@ -186,7 +189,7 @@ Backup & Restore
    assert jdb == fruits
 
    # backup jdb to bak folder = ./bak/fruit.jdb
-   jdb_bak = jdb.backup('bak')
+   jdb_bak = jdb.backup(folder='bak')
    assert jdb_bak == fruits
    assert jdb_bak == jdb
 
@@ -197,7 +200,7 @@ Backup & Restore
    assert len(jdb) == 0
 
    # restore bak folder to jdb
-   jdb.restore('bak')
+   jdb.restore(folder='bak')
    assert jdb == fruits
    assert jdb == jdb_bak
 
@@ -357,7 +360,7 @@ Step 2: Import to ``JDb``
    print(len(logs))            # Get the total number of logs
 
    # Combine with powerful Lambda queries to find logs for a specific project
-   project_3_logs = logs.find(FUNC=lambda v: v.get('project_id') == 3)
+   project_3_logs = logs.find(FUNC=lambda val: v[project_id'] == 3)
 
 Network
 -------
