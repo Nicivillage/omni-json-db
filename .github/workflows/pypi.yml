@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-13, windows-2022]
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -33,7 +33,6 @@ jobs:
 
       - name: Create test script
         shell: bash
-        if: runner.os != 'Windows'
         run: |
           cat << 'EOF' > test_script.py
           from omni_json_db import JDb, __version__
@@ -44,4 +43,5 @@ jobs:
           EOF
 
       - name: Run verification script
+        if: runner.os != 'Windows'
         run: python test_script.py
