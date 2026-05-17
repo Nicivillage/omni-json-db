@@ -14,11 +14,11 @@ from sqlite3 import connect as sql_connect, Row as sql_Row, Connection
 #-----------------------------------------------------------------------------
 try:
     from tomllib import loads as toml_loads
-except ImportError:
+except ImportError: # pragma: no cover
     try:
         from tomli import loads as toml_loads
     except ImportError:
-        from toml import loads as toml_loads
+        toml_loads = None
 #-----------------------------------------------------------------------------
 from .jdb_io import JIo, MIN_INDEX_SIZE, VAL_FILE_BUF_SIZE, KEY_FILE_BUF_SIZE,\
             API_LATEST, CHG_DAY_FLAG, NEW_DAY_MASK, OLD_DAY_MASK,\
@@ -2390,6 +2390,9 @@ class JDb(JDbReader):
             return self
 
     def from_toml(self, src:Union[str,IO]) -> JDb:
+        if not toml_loads:
+            raise ModuleNotFoundError("tomli is not installed. Please pip install tomli.")
+
         if isinstance(src, str): # pragma: no cover
             with open(src, 'rt', encoding='utf-8') as fp:
                 content = fp.read()

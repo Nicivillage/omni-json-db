@@ -83,6 +83,7 @@ Installation
 
    pip install omni-json-db
 
+
 Basic
 -----
 
@@ -407,7 +408,7 @@ Change Type
 
    # Initialize the database in memory
    # Key-Value is Json+Json with no compression
-   jdb = JDb(data_type='J+J', zip_type='no')
+   jdb = JDb(data_type='J+J')
 
    fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}
 
@@ -435,9 +436,9 @@ Time-Series
    import datetime as dt
 
    # Initialize the database in memory
-   # Key+Value is Json+Json with Brotli compression
+   # Key+Value is Json+Json with Gzip compression
    # using BTree as Key Table for better memory usage
-   jdb = JDb(data_type="J+J(br)", key_limit="bt")
+   jdb = JDb(data_type="J+J(gz)", key_limit="bt")
 
    # insert data
    fruits = {'apple':'red', 'banana':'yellow', 'mango':'yellow', 'lemon':'yellow', 'tomato':'red'}

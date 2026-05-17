@@ -8,3 +8,4 @@ ormsgpack
 portalocker
 pyyaml
 zstandard
+tomli

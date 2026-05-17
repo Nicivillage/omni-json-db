@@ -939,7 +939,7 @@ try:
             self.clear()
 
 except ModuleNotFoundError:
-    BTreeKeyTable = DictKeyTable
+    BTreeKeyTable = None
 
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
@@ -1288,9 +1288,15 @@ class JIoVAL_P(JIoVAL):
 
 class JIoVAL_Y(JIoVAL):
     def dumps(self, data:Any) -> bytes:
+        if yaml: # pragma: no cover
+            raise ModuleNotFoundError("PyYAML is not installed. Please pip install pyyaml.")
+
         return yaml.safe_dump(data, allow_unicode=True).encode('utf8')
 
     def loads(self, data:bytes) -> Any:
+        if yaml: # pragma: no cover
+            raise ModuleNotFoundError("PyYAML is not installed. Please pip install pyyaml.")
+
         for _ in range(9):
             try:
                 return yaml.safe_load(data)
@@ -1608,6 +1614,15 @@ class JIo:
         if not LAST_ZIP_TYPE >= value >= 0:
             raise ValueError(f'invalid data type {value}')
 
+        if value in {ZS_ZIP, Z1_ZIP, Z2_ZIP} and zstd_decompress is None: # pragma: no cover
+            raise ModuleNotFoundError("zstandard is not installed. Please pip install zstandard.")
+
+        if value == LZ_ZIP and lz4_decompress is None: # pragma: no cover
+            raise ModuleNotFoundError("lz4 is not installed. Please pip install lz4.")
+
+        if value == BR_ZIP and br_decompress is None: # pragma: no cover
+            raise ModuleNotFoundError("brotli is not installed. Please pip install brotli.")
+
         if ZIP_lut[value] is None:
             raise ValueError(f'cannot use this zip type, please pip install. {value}')
 
@@ -1665,7 +1680,7 @@ class JIo:
         if not LAST_DATA_TYPE >= value >= 0:
             raise ValueError(f'invalid data type {value}')
 
-        if yaml is None and value in {J_Y_TYPE, S_Y_TYPE}: # pragma: no cover
+        if value in {J_Y_TYPE, S_Y_TYPE} and yaml is None: # pragma: no cover
             raise ModuleNotFoundError("PyYAML is not installed. Please pip install pyyaml.")
 
         self._data_type = value
@@ -1693,6 +1708,9 @@ class JIo:
 
         if not isinstance(value, int):
             raise TypeError(f'invalid key limit type {value}')
+
+        if value == -0x100 and BTreeKeyTable is None: # pragma: no cover
+            raise ModuleNotFoundError("BTrees is not installed. Please pip install BTrees.")
 
         if self._key_limit != value and (self.key_table is not None):
             if value == 0:
