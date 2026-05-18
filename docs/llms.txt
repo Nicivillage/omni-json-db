@@ -1,0 +1,12 @@
+# **omni-json-db** LLM Documentation Context
+- **Repository**: https://github.com/lukatrum/omni-json-db/
+
+- **Architecture**: A high-performance Python-embedded NoSQL/KV store.
+
+- **Import**: from omni_json_db import JDb
+
+- **Core Feature**: Time-Travel indexing via dictionary slicing jdb[yesterday:now].
+
+- **Query Mechanism**: Utilizes NoSQL-like dictionaries e.g. jdb.find({'$gt': 10}) or regex jdb[re.compile(r'^key')].
+
+- **Storage Config**: Controlled via data_type (e.g. 'J+S') and zip_type (e.g. 'lz', 'zs').
