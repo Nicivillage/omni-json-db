@@ -11,14 +11,23 @@ English_ | 中文_
 
 |Version| |Build Status| |Pylint| |Codacy| |Coverage| |License|
 
+
+📌 Supported Python Versions
+****************************
+
+**omni-json-db** has been tested with Python 3.7+ and PyPy3.
+
+|Python Version|
+
 ..
 
    If you find **omni-json-db** useful, please consider giving it a **⭐️**! It helps the project grow and reach more developers.
 
+
 👉 Quick Links
 **************
 
-- `📌 Supported Python Versions`_
+- `✨ Introduction`_
 - `🛠️ Quick Start`_
 - `📝 Specifications`_
 - `📊 Benchmarking`_
@@ -26,7 +35,7 @@ English_ | 中文_
 
 
 ✨ Introduction
-***************
+****************
 **omni-json-db** is a high-performance, embedded database engine designed for Python developers. It bridges the gap between the extreme speed of a Key-Value store and the powerful querying capabilities of a document database.
 
 Built for ultra-high throughput and thread-safety, **omni-json-db** leverages modern serialization (*JSON*, *MsgPack*, *marshal*, *pickle*, *YAML*) and compression to provide a storage layer that is often significantly faster than *SQLite* for *JSON*-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, **omni-json-db** provides the tools to handle data at scale with "Zero-Config" simplicity.
@@ -53,7 +62,7 @@ Unlike traditional *SQLite* or *NoSQL* databases, **omni-json-db** allows you to
 
 * **In-Memory Mode** (``JMemFiles``): Run the entire database in RAM for high performance (ideal for real-time caches or volatile session storage). [refer to `In-memory Mode`_]
 
-* **"Time-Travel" & Rollbacks**: The database tracks internal states, allowing you to undo modifications (``unmodify()``) or recover deleted data (``unremove()``). Accidentally deleted a record? One line of code brings it back. [refer to `Undo`_ + `Backup & Restore`_]
+* **"Time-Travel" & Rollbacks**: The database tracks internal states, allowing you to undo modifications (``unmodify()``) or recover deleted data (``unremove()``). Accidentally deleted a record? One line of code brings it back. [refer to `Unremove & Unmodify`_ + `Backup & Restore`_]
 
 * **Grouping & Namespaces**: Easily isolate and manage different data modules using groups. [refer to `Groups Mode`_]
 
@@ -65,13 +74,6 @@ Unlike traditional *SQLite* or *NoSQL* databases, **omni-json-db** allows you to
 
 * **Concurrency Control**: Optimized for Many-Read / Single-Write environments using a robust file-locking and Lock mechanism. [refer to `Advanced`_]
 
-
-📌 Supported Python Versions
-****************************
-
-**omni-json-db** has been tested with Python 3.7+ and PyPy3.
-
-|Python Version|
 
 🛠️ Quick Start
 **************
@@ -155,8 +157,8 @@ Query Engine
 
 Condition operators: ``EQ``, ``NE``, ``GT``, ``LT``, ``GE``, ``LE``, ``HAS``, ``RE``, ``RE2``, ``FUNC``, ``AND``, ``OR``, ``NOT``, ``SIZE``, ``ANY``.
 
-Undo
-----
+Unremove & Unmodify
+-------------------
 
 .. code-block:: python
 
