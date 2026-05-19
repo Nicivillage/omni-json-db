@@ -19,7 +19,7 @@ __author__          = 'Lukatrum'
 __email__           = 'lukatrum@gmail.com'
 __description__     = 'A zero-config, powerful JSON database with compression. No schema, no setup, just data.'
 __url__             = 'https://github.com/Lukatrum/omni-json-db'
-__version__         = '2.11.30'
+__version__         = '2.11.31'
 
 __all__ = [
     'JDb',
@@ -39,32 +39,29 @@ dumps = JDb.z_dumps
 
 def run_files_server(host:str='127.0.0.1', port:int=59898, files:Union[str,bytearray,JFilesBase,JDbReader,None]=None, verbose:int=0) -> TCPServer:
     """
-    Initializes and runs a multi-threaded TCP server to expose the JDb object.
+    Initialize and start a multi-threaded TCP server to allow external access to the JDb object.
     
     Args:
-        host (str, optional): host address (default='127.0.0.1')
-        port (int, optional): host listening port (default=59898)
-        files (Union[str, bytearray, JFilesBase, JDbReader, None], optional): 
-            > [str] JDiskFiles(path) object for JDb,  if empty str, use JMemFiles()
-            > [bytearry] JMemFiles(KEY_file) for JDb
-            > [JDiskFiles] disk files object for JDb
-            > [JMemFiles] memory files object for JDb
-            > [JNetFiles] network files object for JDb
-            > [JDbReader] JDb files object
-            > [default=None] JMemFiles()       
-        verbose (int, optional): Logging level (-ve: off, 0: limit, 1: err, 4: debug).
-            > -ve = disable
-            > 0~4 = enable
-                > 0=LIMIT (default)
-                > 1=ERROR 
-                > 2=WARNING 
-                > 3=INFO
-                > 4=DEBUG
-    Return:
-        TCPServer
+        host (str, optional): The host address for the server to listen on. Defaults to '127.0.0.1'.
+        port (int, optional): The port number for the server to listen on. Defaults to 59898.
+        files (Union[str, bytearray, JFilesBase, JDbReader, None], optional):
+            The specified source for the database file:
+                - str: Uses JMemFiles() if empty; otherwise, parses as JDiskFiles(path).
+                - bytearray: Uses JMemFiles(KEY_file).
+                - JFilesBase: Various file objects (JDiskFiles, JMemFiles, JNetFiles).
+                - JDbReader: An existing JDbReader object.
+                - None: Defaults to JMemFiles().
+        verbose (int, optional): Logging verbosity level (-1: Off, 0: Limited, 1: Error, 2: Warning, 3: Info, 4: Debug). Defaults to 0.
+    
+    Returns
+        TCPServer: The started TCP server instance.
 
     Raises:
-        TypeError: If the provided `files` parameter is invalid.    
+        TypeError: Raised when the provided type for the files parameter is invalid.
+
+    Examples
+        >>> server = run_files_server(host='127.0.0.1', port=8080)
+        >>> server.serve_forever()
     """
     if files is None or isinstance(files, bytearray):
         files_obj = JMemFiles(files)

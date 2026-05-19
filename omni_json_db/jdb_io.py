@@ -41,6 +41,20 @@ except ModuleNotFoundError:
     lz4_compress = lz4_decompress = None
 
 def _json_default(obj):
+    """Fallback serialization encoder function for unsupported default JSON datatypes.
+
+    Converts iterable sets into native list arrays, and custom-encodes raw binary payloads 
+    (bytes/bytearrays) into a hex tracking string prefixed with a unique signature matrix.
+
+    Args:
+        obj (Any): Object target candidate that failed standard JSON serialization rules.
+
+    Returns:
+        Any: JSON-serializable representation of the source object.
+
+    Raises:
+        TypeError: If the object data type remains unrecognized and unsupported.
+    """
     if isinstance(obj, (set, frozenset)):
         return list(obj)
 
@@ -60,9 +74,26 @@ try:
 except ModuleNotFoundError:
     from json import loads as _json_loads, dumps as __json_dumps, JSONDecodeError
     def _json_dumps(obj:Any, default:Optional[Callable[[Any], bytes]]=None) -> bytes:
+        """Internal JSON string dump utility function acting as alternative to orjson.
+
+        Args:
+            obj (Any): Target object structure payload to serialize.
+            default (Optional[Callable[[Any], bytes]], optional): Fallback serialization routing encoder. Defaults to None.
+
+        Returns:
+            bytes: UTF-8 encoded byte representation of the serialized JSON payload.
+        """
         return __json_dumps(obj, default=default, ensure_ascii=False, separators=(',',':')).encode('utf8')
 
     def json_dumps(obj:Any) -> bytes:
+        """Standard JSON dump abstraction routing parameters through custom default fallback logic layers.
+
+        Args:
+            obj (Any): Python data structure or primitive payload to process.
+
+        Returns:
+            bytes: Compact UTF-8 raw encoded JSON byte sequence array.
+        """
         return __json_dumps(obj, default=_json_default, ensure_ascii=False, separators=(',',':')).encode('utf8')
 
     json_loads = _json_loads
@@ -72,15 +103,43 @@ try:
     from msgpack import unpackb as _msg_loads, Unpacker
 
     def _msg_encode(obj) -> bytes:
+        """Pack non-primitive object structures using marshal codecs into MsgPack Ext objects.
+
+        Args:
+            obj (Any): Non-primitive input object.
+
+        Returns:
+            Ext: Wrapped serialization object extension mapping type ID 123.
+        """
         return Ext(123, marshal_dumps(obj))
 
 except (ModuleNotFoundError, ImportError):
     from msgpack import packb as _msg_dumps, unpackb as _msg_loads, Unpacker, ExtType
 
     def _msg_encode(obj) -> bytes:
+        """Pack non-primitive object structures using marshal codecs into legacy MsgPack ExtType objects.
+
+        Args:
+            obj (Any): Non-primitive input object.
+
+        Returns:
+            ExtType: Wrapped serialization object extension mapping type ID 123.
+        """
         return ExtType(123, marshal_dumps(obj))
 
 def _msg_decode(code:int, data:bytes):
+    """Decode custom MsgPack extensions utilizing marshal deserialization routines.
+
+    Args:
+        code (int): The extension type registry code. Expects strictly type ID 123.
+        data (bytes): The raw binary payload block associated with the extension tag.
+
+    Returns:
+        Any: The unpacked python primitive or object structure.
+
+    Raises:
+        TypeError: If an unregistered extension type code token encounters parsing streams.
+    """
     if code == 123:
         return marshal_loads(data)
 
@@ -245,8 +304,17 @@ PAD_lut = [
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JDbGroupDict(dict): # pragma: no cover
+    """Custom dictionary implementation returning None instead of throwing KeyError on missing elements."""
     __slots__ = []
-    def __missing__(self, key):
+    def __missing__(self, key:str) -> None:
+        """Handle missing keys safely by returning None.
+
+        Args:
+            key (Str): Missing key token descriptor.
+
+        Returns:
+            None: Fallback placeholder indicator value.
+        """
         return None
 
 #-----------------------------------------------------------------------------
@@ -254,6 +322,7 @@ class JDbGroupDict(dict): # pragma: no cover
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class KeyTable: # pragma: no cover
+    """Protocol Interface layout contract defining standard indexing schemas for tracking index rows keys mappings."""
     def get_mode(self) -> int: ...
     def cache_cleanup(self): ...
     def set(self, _key:str, _row_id:int): ...
@@ -277,14 +346,29 @@ class KeyTable: # pragma: no cover
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class DictKeyTable(dict): # pragma: no cover
+    """Dictionary-backed implementation of KeyTable protocol optimizing fast in-memory lookups."""
     __slots__ = []
-    def __missing__(self, key):
+    def __missing__(self, key:str) -> int:
+        """Handle missing keys safely by returning default error indicator value -1.
+
+        Args:
+            key (str): Target lookup indicator.
+
+        Returns:
+            int: Error code indicating unallocated item references.
+        """
         return -1
 
     def get_mode(self) -> int:
+        """Get the current dictionary matrix classification mode.
+
+        Returns:
+            int: Code indicator mapping baseline processing profiles rules.
+        """
         return -1
 
     def cache_cleanup(self):
+        """Wipe tracking maps clear re-initializing dictionary structures contexts variables layouts directly."""
         self.clear()
 
 #-----------------------------------------------------------------------------
@@ -293,9 +377,18 @@ class DictKeyTable(dict): # pragma: no cover
 #-----------------------------------------------------------------------------
 xhash = hash # hash() is not deterministic, can export PYTHONHASHSEED=0
 class PartialKeyTable(KeyTable):
+    """Memory-efficient key indexing proxy utilizing bitarrays and sparse object cache pipelines.
+
+    Postpones loading full keys sets from physical devices disks by maintaining localized bloom filter configurations trackers.
+    """
     __slots__ = {'cache', 'io', 'flags', 'is_dirty', 'files_obj'}
 
     def __init__(self, jio:JIo):
+        """Initialize partial tracking layers parsing data indices boundaries criteria metrics models.
+
+        Args:
+            jio (JIo): Active pipeline transaction driver routing local configuration properties.
+        """
         self.cache = DictKeyTable()
         self.io = jio
         self.files_obj = jio.files_obj.copy()
@@ -303,16 +396,33 @@ class PartialKeyTable(KeyTable):
         self.flags = bitarray(DEF_FLAG_SIZE) # not all zero
         self.flags.setall(0)
 
-    def cache_cleanup(self):
+    def cache_cleanup(self) -> None:
+        """Clear memory cache frameworks structures to prevent runtime drift."""
         return self.cache.clear()
 
     def get_mode(self) -> int:
+        """Get the classification mode configuration parameter code.
+
+        Returns:
+            int: Constant mapping indicator parameters.
+        """
         return -1
 
     def __repr__(self) -> str:
+        """Generate telemetry reports indicating density metrics and bitwise allocation accuracy tiers.
+
+        Returns:
+            str: Presentation text log summary details parameters strings.
+        """
         return f'<{type(self).__name__} {"D" if self.is_dirty else "F"} cache:{len(self.cache)} {self.flags.count(1)*100./len(self.flags):.2f}% at {hex(id(self))}>'
 
-    def set(self, key:str, row_id:int):
+    def set(self, key:str, row_id:int) -> None:
+        """Log key coordinates properties configurations fields matching localized index pools blocks frameworks.
+
+        Args:
+            key (str): Query selector name string token descriptor context.
+            row_id (int): Hardware data sector row index position coordinate value number integer.
+        """
         jio = self.io
         cache = self.cache
         if jio.n_records <= 0:
@@ -335,6 +445,15 @@ class PartialKeyTable(KeyTable):
         cache[key] = row_id
 
     def pop(self, key:str, default_row_id:int=-1) -> int:
+        """Erase entry mappings tracking variables unlinking selected items across database layers maps tracks systems.
+
+        Args:
+            key (str): Query identity label selection code text format string token.
+            default_row_id (int, optional): Fallback value mapping missing slots boundaries coordinates positions numbers. Defaults to -1.
+
+        Returns:
+            int: Numerical measure representing unlinked item row address coordinate positions index numbers parameters logs.
+        """
         size = len(self)
         if size <= 0: # pragma: no cover
             self.clear()
@@ -373,6 +492,15 @@ class PartialKeyTable(KeyTable):
         return default_row_id
 
     def get(self, key:str, default_row_id:int=-1) -> int:
+        """Resolve target data identifiers strings parameters checking active tracking filters registers pools levels maps.
+
+        Args:
+            key (str): Primary key entry selection string identifier token text layout metrics descriptors properties fields fields.
+            default_row_id (int, optional): Target fallbacks options settings values if tracking lookups miss indicators pools context paths. Defaults to -1.
+
+        Returns:
+            int: Target integer tracking indices indicating row alignment positions markers arrays sheets metrics data.
+        """
         size = len(self)
         if size <= 0: # pragma: no cover
             self.clear()
@@ -420,6 +548,11 @@ class PartialKeyTable(KeyTable):
         return default_row_id
 
     def items(self) -> Generator[str,int]:
+        """Iterate pairs matching target identifiers text tokens straight onto physical rows blocks integers coordinates indices trackers sequences.
+
+        Yields:
+            Tuple[str, int]: Associated unique identity string token paired along exact allocation row position line index number value.
+        """
         size = len(self)
         if size <= 0: # pragma: no cover
             self.clear()
@@ -445,6 +578,11 @@ class PartialKeyTable(KeyTable):
                 fp.close()
 
     def values(self) -> Generator[int]:
+        """Iterate through the absolute range of available active row line index numbers.
+
+        Yields:
+            int: Row position coordinate value number integer slot position.
+        """
         size = len(self)
         if size <= 0: # pragma: no cover
             self.clear()
@@ -453,6 +591,11 @@ class PartialKeyTable(KeyTable):
         yield from range(size)
 
     def keys(self) -> Generator[str]:
+        """Iterate over the full layout collection sequence tracking active identifier string tokens from the database file index sheet.
+
+        Yields:
+            str: Identity selection descriptor label context text formats string tokens variables.
+        """
         size = len(self)
         if size <= 0: # pragma: no cover
             self.clear()
@@ -478,6 +621,11 @@ class PartialKeyTable(KeyTable):
                 fp.close()
 
     def copy(self) -> PartialKeyTable:
+        """Construct replica instances duplication frameworks copying active filter arrays signatures matrices layers.
+
+        Returns:
+            PartialKeyTable: Carbon copy replication workspace object context wrapper tracker handle.
+        """
         obj = PartialKeyTable(self.io)
         if len(self) > 0:
             obj.flags.clear()
@@ -488,12 +636,18 @@ class PartialKeyTable(KeyTable):
         return obj
 
     def clear(self):
+        """Purge memory configurations reset trackers parameters indicators initializing bloom filters blocks matrices maps grids back onto zero fields."""
         if self.is_dirty or self.cache:
             self.flags.setall(0)
             self.cache.clear()
             self.is_dirty = False
 
     def __len__(self) -> int:
+        """Calculate total registered data rows records numbers.
+
+        Returns:
+            int: Element measure count value.
+        """
         return self.io.n_records
 
     def __setitem__(self, key:str, row_id:int):
@@ -593,8 +747,20 @@ class PartialKeyTable(KeyTable):
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class LiteKeyTable(KeyTable):
+    """Ultra compact text index manager replacing standard dictionary spaces models entirely with serialized byte arrays.
+
+    Saves device runtime environments storage footprints overhead inside system execution memory layers grids.
+    """
     __slots__ = {'groups', 'size', 'mask', 'mode', 'flags', 'flags_mask'}
     def __init__(self, mode:int=0):
+        """Initialize compact storage partitions maps arrays based on specialized mask profiling parameters rules.
+
+        Args:
+            mode (int, optional): Sizing constraints profile configuration indicator value. Defaults to 0.
+
+        Raises:
+            ValueError: If an unexpected out-of-bounds mode tier is passed.
+        """
         _mode = mode & 0xfff
         if _mode == 0:
             self.mask = 0
@@ -623,12 +789,24 @@ class LiteKeyTable(KeyTable):
         self.size = -1
 
     def get_mode(self) -> int:
+        """Extract the exact active masking operational mode code index number integer.
+
+        Returns:
+            int: Tracking classification setting variable.
+        """
         return self.mode
 
     def cache_cleanup(self): # pragma: no cover
+        """Flush transient runtime memory segments resetting index trackers profiles frameworks configurations details."""
         self.clear()
 
     def set(self, key:str, row_id:int):
+        """Inject structured MsgPack compressed signature entries straight into sequential byte arrays regions trackers.
+
+        Args:
+            key (str): Primary tracking code name label identifier string token format text layout selection context.
+            row_id (int): Hardware space line allocation coordinate integer location value number.
+        """
         if self.size < 0: # pragma: no cover
             self.clear()
 
@@ -692,6 +870,15 @@ class LiteKeyTable(KeyTable):
         key_array.extend(search_prefix + (_msg_dumps(row_id) or b''))
 
     def pop(self, key:str, default_row_id:int=-1) -> int:
+        """Extract and remove specific entries maps tracks variables returning previous records boundaries indices numbers parameters logs.
+
+        Args:
+            key (str): Identity string query selector token text format label context.
+            default_row_id (int, optional): Fallback value mapping missing tracking arrays coordinates targets slots. Defaults to -1.
+
+        Returns:
+            int: The previously allocated index row integer target value number.
+        """
         if self.size == 0:
             return default_row_id
 
@@ -751,6 +938,15 @@ class LiteKeyTable(KeyTable):
         return default_row_id
 
     def get(self, key:str, default_row_id:int=-1) -> int:
+        """Scan binary grouped storage pools seeking target line allocations boundaries matching given string indicators context text keys.
+
+        Args:
+            key (str): Selection lookup name string descriptor identity token fields.
+            default_row_id (int, optional): Fallback target coordinates settings parameter integer numbers if query misses indicators registers. Defaults to -1.
+
+        Returns:
+            int: The numerical tracking address index mapping current data rows slots.
+        """
         if self.size <= 0:
             return default_row_id
 
@@ -801,6 +997,11 @@ class LiteKeyTable(KeyTable):
         return default_row_id
 
     def items(self) -> Generator[str,int]:
+        """Generate unpacked data pairs mapping query strings onto row slot integers indices coordinates from binary matrices blocks fields.
+
+        Yields:
+            Tuple[str, int]: Identity selection descriptor token string coupled along row integer reference value number.
+        """
         if self.size <= 0:
             return
 
@@ -811,6 +1012,11 @@ class LiteKeyTable(KeyTable):
             yield from unpacker
 
     def values(self) -> Generator[int]:
+        """Generate isolated numerical index row coordinate integers tracking database items locations markers arrays.
+
+        Yields:
+            int: Target row allocation block number integer value.
+        """
         if self.size <= 0:
             return
 
@@ -822,6 +1028,11 @@ class LiteKeyTable(KeyTable):
                 yield row
 
     def keys(self) -> Generator[str]:
+        """Generate unique query strings identifiers extracted directly across data bytes blocks structures arrays sheets.
+
+        Yields:
+            str: Identity selection descriptive token string code layout text.
+        """
         if self.size <= 0:
             return
 
@@ -833,6 +1044,11 @@ class LiteKeyTable(KeyTable):
                 yield key
 
     def copy(self) -> LiteKeyTable:
+        """Construct replica instances duplication frameworks copying binary data tracking targets indicators context.
+
+        Returns:
+            LiteKeyTable: Cloned alternative index workspace data object manager framework handle.
+        """
         obj = LiteKeyTable(self.mode)
         if self.size > 0:
             for dst_array,src_array in zip(obj.groups, self.groups):
@@ -847,6 +1063,7 @@ class LiteKeyTable(KeyTable):
         return obj
 
     def clear(self):
+        """Reset internal arrays flushing structural block parameters indicators clearing memory footprints metrics completely back onto zero limits layers."""
         if self.size != 0:
             for key_array in self.groups:
                 key_array.clear()
@@ -855,6 +1072,11 @@ class LiteKeyTable(KeyTable):
             self.size = 0
 
     def __repr__(self) -> str:
+        """Generate descriptive system diagnostics summaries outlining current memory data load density metrics specs.
+
+        Returns:
+            str: Telemetry presentation tracking pointer variables parameters configurations layout string text context fields logs.
+        """
         _bytes = len(self.flags) // 8
         for key_array in self.groups:
             _bytes += len(key_array)
@@ -907,6 +1129,7 @@ try:
     from BTrees.OLBTree import OLBTree as BTree # pylint: disable=no-name-in-module, import-error
 
     class BTreeKeyTable(BTree):
+        """BTree-backed alternative implementation of KeyTable protocol handling heavy database datasets scalability arrays metrics grids."""
         def __repr__(self) -> str:
             return f'<{type(self).__name__} at {hex(id(self))}>'
 
@@ -927,15 +1150,26 @@ try:
             return True
 
         def copy(self) -> BTreeKeyTable:
+            """Construct alternative clones instances duplication wrappers tracking active balanced node tree contexts layouts.
+
+            Returns:
+                BTreeKeyTable: Duplicate database indexing driver framework tree environment proxy.
+            """
             return BTreeKeyTable(self)
 
         def __getitem__(self, key:str) -> int:
             return self.get(key, -1)
 
         def get_mode(self) -> int:
+            """Get structural layout matrix tree status classification tracker code number.
+
+            Returns:
+                int: Operational mode classification identifier indicator.
+            """
             return -1
 
         def cache_cleanup(self): # pragma: no cover
+            """Clear target registry trees maps templates resetting database parameters indicators back onto zero configurations logs."""
             self.clear()
 
 except ModuleNotFoundError:
@@ -946,55 +1180,60 @@ except ModuleNotFoundError:
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JIoHEAD:
+    """Serialization schema codec module tracking core physical database configuration layout header parameters specifications sheets metadata."""
     def dumps_v0(self, sync_id:int, n_records:int, n_lines:int, index_size:int, zip_type:int, data_type:int, swap_id:int, remv_id:int, api_ver:int) -> bytes:
-        '''
-            > 1| sync_id [int]
-                - current JDb sync ID
+        """Pack V0 database file layout configuration header state fields parameters into compact JSON text byte strings arrays layers.
 
-            > 2| n_records [int]
-                - total valid keys
+        Args:
+            sync_id (int): Transaction sync session identifier reference tracking variable sequence number index value.
+            n_records (int): Count of current valid data row elements entries actively indexed inside system frameworks pools.
+            n_lines (int): Combined count logging both live unique records rows paired along dead or unlinked database elements slots.
+            index_size (int): Allocated byte length spacing individual key entries mapping boundaries across index arrays sheets.
+            zip_type (int): Compression configuration blueprint indicator code token selection tracking value number integer.
 
-            > 3| n_lines [int]
-                - total valid keys + invalid keys (deleted)
+                - 0 = no compression for VAL
+                - 1 = gzip compression(9) for VAL
+                - 2 = bz2 compression(9) for VAL
+                - 3 = lzma compression for VAL
+                - 4 = zstandard compression(22) for VAL
+                - 5 = brotli compression(6) for VAL
+                - 6 = zstandard compression(6) for VAL
+                - 7 = zstandard compression(11) for VAL
+                - 8 = lz4 compression(0) for VAL
 
-            > 4| index_size [int] (default=128)
-                - total row size for each key in KEY file
+            data_type (int): Codec scheme indicator tracking format specifications parameters settings (e.g., MsgPack, JSON, Marshal).
 
-            > 5| zip_type [int]
-                no = [0] no compression for VAL
-                gz = [1] gzip compression(9) for VAL
-                bz = [2] bz2 compression(9) for VAL
-                xz = [3] lzma compression for VAL
-                zs = [4] zstandard compression(22) for VAL
-                br = [5] brotli compression(6) for VAL
-                z1 = [6] zstandard compression(6) for VAL
-                z2 = [7] zstandard compression(11) for VAL
-                lz = [8] lz4 compression(0) for VAL
+                - 1  = KEY=split    | VAL=Json
+                - 2  = KEY=Marshal  | VAL=Marshal
+                - 3  = KEY=Json     | VAL=Json
+                - 4  = KEY=Json     | VAL=Marshal
+                - 5  = KEY=Json     | VAL=Pickle
+                - 6  = KEY=msgpack  | VAL=msgpack
+                - 7  = KEY=Json     | VAL=msgpack
+                - 8  = KEY=msgpack  | VAL=Marshal
+                - 9  = KEY=msgpack  | VAL=Json
+                - 10 = KEY=msgpack  | VAL=Pickle
+                - 11 = KEY=msgpack  | VAL=YAML
+                - 12 = KEY=msgpack  | VAL=YAML
 
-            > 6| data_type [int]
-                L+J = [1] KEY=split   : VAL=Json
-                M+M = [2] KEY=Marshal : VAL=Marshal
-                J+J = [3] KEY=Json    : VAL=Json
-                J+M = [4] KEY=Json    : VAL=Marshal
-                J+P = [5] KEY=Json    : VAL=Pickle
-                S+S = [6] KEY=msgpack : VAL=msgpack
-                J+S = [7] KEY=Json    : VAL=msgpack
-                S+M = [8] KEY=msgpack : VAL=Marshal
-                S+J = [9] KEY=msgpack : VAL=Json
-                S+P = [10]KEY=msgpack : VAL=Pickle
-                J+Y = [11] KEY=msgpack : VAL=YAML
-                S+Y = [12]KEY=msgpack : VAL=YAML
+            swap_id (int): Logical tracking reference incrementing with structural record rearrangement transformations transitions.
+            remv_id (int): Cumulative deletions sequence indicator code recording dropped elements.
+            api_ver (int): API iteration code parameter track logging framework specifications versions limit boundary layers rules.
 
-            > 7| swap_id [int]
-                - +1 when swapping key to differnt row
-
-            > 8| remv_id [int]
-                - +1 when deleting key
-
-        '''
+        Returns:
+            bytes: JSON formatted header sequence binary block array string.
+        """
         return _json_dumps((sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id, api_ver))
 
     def loads_v0(self, header:bytes) -> Tuple[int,int,int,int,int,int,int,int,int]:
+        """Unpack legacy V0 header arrays profiles extracting structural layout parameters metrics trackers from raw bytes streams contexts.
+
+        Args:
+            header (bytes): Target binary payload block containing string logs parameters configurations sheets data metrics.
+
+        Returns:
+            Tuple[int,int,int,int,int,int,int,int,int]: Complete state representation parameters tracking database properties registers.
+        """
         if header[0] == 91: # '['
             info = _json_loads(header)
         else:
@@ -1029,55 +1268,61 @@ class JIoHEAD:
         return sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id, api_ver
 
     def dumps_v1(self, sync_id:int, n_records:int, n_lines:int, index_size:int, zip_type:int, data_type:int, swap_id:int, remv_id:int, api_ver:int) -> bytes:
-        '''
-            > 1| sync_id [int]
-                - current JDb sync ID
+        """Pack production V1 dataset schemas configurations header states definitions straight into compact JSON data payloads arrays.
 
-            > 2| n_records [int]
-                - total valid keys
+        Args:
+            sync_id (int): Transaction generation number tracker.
+            n_records (int): Active live record entries measure count.
+            n_lines (int): Structural baseline row allocation tracks limit integer.
+            index_size (int): Sizing operational constraint width specifying row padding bounds.
+            zip_type (int): Compression rule profile designation integer value index selection.
 
-            > 3| n_lines [int]
-                - total valid keys + invalid keys (deleted)
+                - 0 = no compression for VAL
+                - 1 = gzip compression(9) for VAL
+                - 2 = bz2 compression(9) for VAL
+                - 3 = lzma compression for VAL
+                - 4 = zstandard compression(22) for VAL
+                - 5 = brotli compression(6) for VAL
+                - 6 = zstandard compression(6) for VAL
+                - 7 = zstandard compression(11) for VAL
+                - 8 = lz4 compression(0) for VAL
 
-            > 4| index_size [int] (default=128)
-                - total row size for each key in KEY file
+            data_type (int): Operational data scheme classification token indicator.
 
-            > 5| zip_type [int]
-                no = [0] no compression for VAL
-                gz = [1] gzip compression(9) for VAL
-                bz = [2] bz2 compression(9) for VAL
-                xz = [3] lzma compression for VAL
-                zs = [4] zstandard compression(22) for VAL
-                br = [5] brotli compression(6) for VAL
-                z1 = [6] zstandard compression(6) for VAL
-                z2 = [7] zstandard compression(11) for VAL
-                lz = [8] lz4 compression(0) for VAL
+                - 1  = KEY=split    | VAL=Json
+                - 2  = KEY=Marshal  | VAL=Marshal
+                - 3  = KEY=Json     | VAL=Json
+                - 4  = KEY=Json     | VAL=Marshal
+                - 5  = KEY=Json     | VAL=Pickle
+                - 6  = KEY=msgpack  | VAL=msgpack
+                - 7  = KEY=Json     | VAL=msgpack
+                - 8  = KEY=msgpack  | VAL=Marshal
+                - 9  = KEY=msgpack  | VAL=Json
+                - 10 = KEY=msgpack  | VAL=Pickle
+                - 11 = KEY=msgpack  | VAL=YAML
+                - 12 = KEY=msgpack  | VAL=YAML
+            
+            swap_id (int): Internal cleanup sequence metrics reference tracking updates.
+            remv_id (int): Deletion counter reference.
+            api_ver (int): Logic structural schema edition selector index token code.
 
-            > 6| data_type [int]
-                L+J = [1] replaced by J+J
-                M+M = [2] KEY=Marshal : VAL=Marshal
-                J+J = [3] KEY=Json    : VAL=Json
-                J+M = [4] KEY=Json    : VAL=Marshal
-                J+P = [5] KEY=Json    : VAL=Pickle
-                S+S = [6] KEY=msgpack : VAL=msgpack
-                J+S = [7] KEY=Json    : VAL=msgpack
-                S+M = [8] KEY=msgpack : VAL=Marshal
-                S+J = [9] KEY=msgpack : VAL=Json
-                S+P = [10]KEY=msgpack : VAL=Pickle
-
-            > 7| swap_id [int]
-                - +1 when swapping key to differnt row
-
-            > 8| remv_id [int]
-                - +1 when deleting key
-
-            > 9| api_ver [int]
-                - JIo API version (default=0)
-
-        '''
+        Returns:
+            bytes: Encoded JSON sequence representing dataset parameters blocks layouts template.
+        """
         return _json_dumps((sync_id, n_records, n_lines, index_size, zip_type, data_type, swap_id, remv_id, api_ver))
 
     def loads_v1(self, header:bytes) -> Tuple[int,int,int,int,int,int,int,int,int]:
+        """Unpack production V1 data matrices parameters sheets extracting variables settings via core JSON interpretation filters.
+
+        Args:
+            header (bytes): Source configuration block byte array.
+
+        Returns:
+            Tuple[int,int,int,int,int,int,int,int,int]: Parsed state tracking elements.
+
+        Raises:
+            ValueError: If transaction stream parsing rules encounter structural corruption across datasets boundaries contexts.
+        """
         try:
             return _json_loads(header)
 
@@ -1092,6 +1337,7 @@ class JIoHEAD:
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JIoKEY(metaclass=ABCMeta): # pragma: no cover
+    """Abstract codec class defining low-level byte serialization blueprints for single row index items metadata structures."""
     @abstractmethod
     def dumps_v0(self, key:str, file_id:int, offset:int, row_size:int, val_size:int, ver:int, days:int) -> bytes: ...
     @abstractmethod
@@ -1102,6 +1348,7 @@ class JIoKEY(metaclass=ABCMeta): # pragma: no cover
     def loads_v1(self, data:bytes) -> Tuple[str,int,int,int,int,int,int]: ...
 
 class JIoKEY_J(JIoKEY):
+    """JSON serialization codec subclass managing row metadata translation models arrays fields."""
     def dumps_v0(self, key:str, file_id:int, offset:int, row_size:int, val_size:int, ver:int, days:int) -> bytes:
         return _json_dumps((key, file_id, offset, row_size | (val_size << 32), ver, days))
 
@@ -1122,6 +1369,7 @@ class JIoKEY_J(JIoKEY):
         return _json_loads(data)
 
 class JIoKEY_S(JIoKEY):
+    """MsgPack compression serialization codec subclass handling high density row index mapping metadata packing rows blocks fields parameters."""
     def dumps_v0(self, key:str, file_id:int, offset:int, row_size:int, val_size:int, ver:int, days:int) -> bytes:
         info_b = _msg_dumps((key, file_id, offset, row_size | (val_size << 32), ver, days)) or b''
         info_len = len(info_b)
@@ -1152,6 +1400,7 @@ class JIoKEY_S(JIoKEY):
         return _msg_loads(data[3:end_idx])
 
 class JIoKEY_M(JIoKEY):
+    """Marshal binary compilation speed codec subclass handling raw system variables mapping optimization layouts structures."""
     def dumps_v0(self, key:str, file_id:int, offset:int, row_size:int, val_size:int, ver:int, days:int) -> bytes:
         return marshal_dumps((key, file_id, offset, row_size | (val_size << 32), ver, days)) # tuple smaller than list
 
@@ -1172,6 +1421,7 @@ class JIoKEY_M(JIoKEY):
         return marshal_loads(data)
 
 class JIoKEY_L(JIoKEY):
+    """Legacy text string comma-separated encoder subclass generating human-readable tracking line rows entries records segments maps paths."""
     def dumps_v0(self, key:str, file_id:int, offset:int, row_size:int, val_size:int, ver:int, days:int) -> bytes:
         data = f'{key},{file_id},{offset},{row_size | (val_size << 32)}|{ver}|{days}'
         return data.encode('utf8')
@@ -1218,12 +1468,14 @@ class JIoKEY_L(JIoKEY):
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JIoVAL(metaclass=ABCMeta): # pragma: no cover
+    """Abstract Base Class (ABC) defining data serialization codecs interfaces wrappers for actual target values records."""
     @abstractmethod
     def dumps(self, data:Any) -> bytes: ...
     @abstractmethod
     def loads(self, data:bytes) -> Any: ...
 
 class JIoVAL_J(JIoVAL):
+    """JSON values payload formatting subsystem driver handling readable text matrices generation."""
     def dumps(self, data:Any) -> bytes:
         return _json_dumps(data, default=_json_default)
 
@@ -1245,6 +1497,7 @@ class JIoVAL_J(JIoVAL):
             raise ValueError from e
 
 class JIoVAL_S(JIoVAL):
+    """MsgPack value payload compiler handling high density binary records packaging."""
     def dumps(self, data:Any) -> bytes:
         return _msg_dumps(data, default=_msg_encode) or b''
 
@@ -1259,6 +1512,7 @@ class JIoVAL_S(JIoVAL):
         raise ValueError
 
 class JIoVAL_M(JIoVAL):
+    """Marshal payload value processing interface utilizing rapid low-level internal runtime hooks."""
     def dumps(self, data:Any) -> bytes:
         return marshal_dumps(data)
 
@@ -1273,6 +1527,7 @@ class JIoVAL_M(JIoVAL):
         raise ValueError
 
 class JIoVAL_P(JIoVAL):
+    """Pickle value payload subsystem driver supporting deep preservation of native Python objects graphs layouts."""
     def dumps(self, data:Any) -> bytes:
         return pickle_dumps(data)
 
@@ -1287,6 +1542,7 @@ class JIoVAL_P(JIoVAL):
         raise ValueError
 
 class JIoVAL_Y(JIoVAL):
+    """YAML values encoder subsystem driver generating multi-line clean configuration trees structures formats documents rows fields."""
     def dumps(self, data:Any) -> bytes:
         if yaml is None: # pragma: no cover
             raise ModuleNotFoundError("PyYAML is not installed. Please pip install pyyaml.")
@@ -1334,6 +1590,17 @@ class JIo:
 
     @staticmethod
     def z_zip_type_str(zip_type:int) -> str:
+        """Convert a numerical compression classification token into its canonical format name token text string.
+
+        Args:
+            zip_type (int): Compression indicator number value index.
+
+        Returns:
+            str: Target nomenclature identity label (e.g., 'zs', 'gz', 'no').
+
+        Raises:
+            ValueError: If an unknown compression type integer is evaluated.
+        """
         if zip_type == NO_ZIP: return 'no'
         if zip_type == GZ_ZIP: return 'gz'
         if zip_type == BZ_ZIP: return 'bz'
@@ -1348,6 +1615,17 @@ class JIo:
 
     @staticmethod
     def z_data_type_str(data_type:int) -> str:
+        """Convert serialization schema format integer targets into layout identification token code strings.
+
+        Args:
+            data_type (int): Type index value number.
+
+        Returns:
+            str: Operational configuration layout nomenclature label text (e.g., 'J+S').
+
+        Raises:
+            ValueError: If an unrecognized layout configuration category code is matched.
+        """
         if data_type == DEF_TYPE: return 'J+S'
         if data_type == L_J_TYPE: return 'L+J'
         if data_type == M_M_TYPE: return 'M+M'
@@ -1366,6 +1644,14 @@ class JIo:
 
     @staticmethod
     def z_key_limit_str(key_limit:int) -> str:
+        """Translate structural cache constraint parameters integers into readable indicator codes text specifications.
+
+        Args:
+            key_limit (int): Underlying memory limitation capacity bounds code index number integer.
+
+        Returns:
+            str: Readable constraint description format string token.
+        """
         if key_limit == 0:      return 'no'
         if key_limit == -0x100: return 'bt'
         if key_limit > 0:       return f'<{key_limit+1}'
@@ -1373,6 +1659,14 @@ class JIo:
 
     @staticmethod
     def z_conv_days(timestamp:Union[int,float,datetime,dt_date]) -> int:
+        """Compute relative integer day counters starting from baseline anchor configurations sheets.
+
+        Args:
+            timestamp (Union[int, float, datetime, dt_date]): Target timeline marker element candidate.
+
+        Returns:
+            int: Calculated absolute day index spacing number integer.
+        """
         if isinstance(timestamp, datetime):
             timestamp = timestamp.date()
 
@@ -1386,6 +1680,14 @@ class JIo:
 
     @staticmethod
     def z_conv_date(days:int) -> Tuple[dt_date, dt_date]:
+        """Convert relative day integers back into structured standard timezone-agnostic calendar object dates.
+
+        Args:
+            days (int): Compact relative timeline offset value tracking variable inside index row.
+
+        Returns:
+            Tuple[dt_date, dt_date]: Pair processing baseline baseline dates and updated adaptation tracking timeline pointers.
+        """
         old_days = days & OLD_DAY_MASK
         new_days = (days & NEW_DAY_MASK) >> NEW_DAY_SHIFT
 
@@ -1403,6 +1705,17 @@ class JIo:
 
     @staticmethod
     def z_conv_str_to_days(val:str) -> int:
+        """Parse raw textual timestamp representation parameters expressions converting fields directly to unified day numbers integers.
+
+        Args:
+            val (str): Human readable raw calendar date text sequence string (e.g., 'YYYY-MM-DD').
+
+        Returns:
+            int: Compact integer measurement mapping day metrics boundaries positions indices numbers parameters logs.
+
+        Raises:
+            ValueError: If alphanumeric parsing patterns break constraint definitions templates format specifications.
+        """
         _vals = re_findall(r'(\d+)(?=\W|$)', val)
         if len(_vals) == 3:
             return JIo.z_conv_days(dt_date(*[int(v) for v in _vals[0:3]]))
@@ -1431,6 +1744,61 @@ class JIo:
             max_file_size:Optional[int]=None, \
             reserved_rate:Optional[float]=None, \
             sync_id:int=0, swap_id:int=0, remv_id:int=0):
+
+        """Initialize core engine parameters linking pipeline translation modules layers across active devices driver handles.
+
+        Args:
+            files_obj (JFilesBase): File management abstraction driver context interface handle instance proxy.
+            data_type (Union[str, int, None], optional): Codec serialization scheme categorization flag indicator.
+                
+                - 'L+J' | 1  = KEY=split    | VAL=Json
+                - 'M+M' | 2  = KEY=Marshal  | VAL=Marshal
+                - 'J+J' | 3  = KEY=Json     | VAL=Json
+                - 'J+M' | 4  = KEY=Json     | VAL=Marshal
+                - 'J+P' | 5  = KEY=Json     | VAL=Pickle
+                - 'S+S' | 6  = KEY=msgpack  | VAL=msgpack
+                - 'J+S' | 7  = KEY=Json     | VAL=msgpack
+                - 'S+M' | 8  = KEY=msgpack  | VAL=Marshal
+                - 'S+J' | 9  = KEY=msgpack  | VAL=Json
+                - 'S+P' | 10 = KEY=msgpack  | VAL=Pickle
+                - 'J+Y' | 11 =  KEY=msgpack | VAL=YAML
+                - 'S+Y' | 12 = KEY=msgpack  | VAL=YAML
+
+            zip_type (Union[str, int, None], optional): Target row data level compression profile rules configuration.
+                
+                - 'no' | 0 = no compression for VAL
+                - 'gz' | 1 = gzip compression(9) for VAL
+                - 'bz' | 2 = bz2 compression(9) for VAL
+                - 'xz' | 3 = lzma compression for VAL
+                - 'zs' | 4 = zstandard compression(22) for VAL
+                - 'br' | 5 = brotli compression(6) for VAL
+                - 'z1' | 6 = zstandard compression(6) for VAL
+                - 'z2' | 7 = zstandard compression(11) for VAL
+                - 'lz' | 8 = lz4 compression(0) for VAL
+
+            key_limit (Union[str, int, None], optional): Sizing operational constraint boundary parameters regulating index memory.
+                
+                - "no" | 0 = use DictKeyTable. (default). 
+                - "bt" | 0x100 = use BTreeKeyTable.
+                - "l0"-"l5" | -ve = use LiteKeyTable.
+                - "<{n}" | +ve = use PartialKeyTable.
+
+            api_ver (Optional[int], optional): Logical physical structural schema edition categorization sequence index token.
+
+                - 0 = oldest version.
+                - None = latest version. (default)
+                
+            min_value_size (Optional[int], optional): Minimal alignment constraint width bounding row expansions.
+            index_size (Optional[int], optional): Fixed byte width defining row segmentation sizes boundaries parameters tracking grids.
+            max_file_size (Optional[int], optional): Physical storage capacity metrics constraint limiting data partitions files allocation sizes.
+            reserved_rate (Optional[float], optional): Expansion reserve factor allocated for updating records drift fields properties.
+            sync_id (int, optional): Synchronization sequence generation tracker value index number. Defaults to 0.
+            swap_id (int, optional): Rearrangement transaction milestone tracking index code integer number. Defaults to 0.
+            remv_id (int, optional): Accumulative deletions sequence tracker reference number code index value. Defaults to 0.
+
+        Raises:
+            TypeError: If input structural variables violate driver blueprint specifications classes.
+        """
 
         if not isinstance(files_obj, JFilesBase):
             raise TypeError
@@ -1526,9 +1894,20 @@ class JIo:
         #pass;0;assert self.load_keys is not None
 
     def __repr__(self) -> str:
+        """Generate structured string summary reports outlining operational engine states parameters configurations specs.
+
+        Returns:
+            str: Identity presentation string block details tracks logs metrics layout context text.
+        """
         return f'<{type(self).__name__}[v{self.api_ver}|{self.data_type_str}|{self.zip_type_str}|{self.key_limit_str}|{self.index_size}|{self.n_records}+{self.n_lines-self.n_records}|k:{self.file_size:,}|s:{self.sync_id}/{self.swap_id}/{self.remv_id}] at {hex(id(self))}>'
 
     def init_APIs(self, api_ver:Optional[int], reset:bool=False):
+        """Scan physical descriptor headers logs dynamically setting baseline codecs pipelines matching verified database states blueprints.
+
+        Args:
+            api_ver (Optional[int]): Logical iteration category indicator target index selection token code text format.
+            reset (bool, optional): Obliterate operational structures resetting metrics back onto standard initialization defaults. Defaults to False.
+        """
         files_obj = self.files_obj
         if self.min_days < 0:
             self.min_days = self.z_conv_days(files_obj.KEY_date())
@@ -1577,14 +1956,29 @@ class JIo:
 
     @property
     def zip_type_str(self) -> str:
+        """Get the compression configuration format profile nomenclature string.
+
+        Returns:
+            str: Identity code string token mapping algorithmic targets (e.g., 'zs', 'no').
+        """
         return self.z_zip_type_str(self._zip_type)
 
     @property
     def zip_type(self) -> int:
+        """Get or set compression rules profiles specifications integers indices tokens.
+
+        Returns:
+            int: Structural algorithmic classification identifier number.
+        """
         return self._zip_type
 
     @zip_type.setter
     def zip_type(self, value:Union[int,str]):
+        """Set the active algorithmic code rule string or integer bounding dataset row level serialization compression properties.
+
+        Args:
+            value (Union[int, str]): Target format indicator selection option parameter string or integer index.
+        """
         if isinstance(value, str):
             value = value.lower()
             if not value or value in {'no', '-', '--'}:
@@ -1630,14 +2024,29 @@ class JIo:
 
     @property
     def data_type_str(self) -> str:
+        """Get format encoding specification layout code tokens indicator naming blueprints.
+
+        Returns:
+            str: Structural layout identifier code string token (e.g., 'J+S').
+        """
         return self.z_data_type_str(self._data_type)
 
     @property
     def data_type(self) -> int:
+        """Get operational database layout coding formats parameters targets.
+
+        Returns:
+            int: Operational mapping category tracking specification number integer.
+        """
         return self._data_type
 
     @data_type.setter
     def data_type(self, value:Union[int,str]):
+        """Set structural serialization layouts formats schemas selecting indicators tokens strings parameters values.
+
+        Args:
+            value (Union[int, str]): Format setting classification assignment label string or integer value index.
+        """
         if isinstance(value, str):
             value = value.upper()
             if not value: # pragma: no cover
@@ -1687,10 +2096,20 @@ class JIo:
 
     @property
     def key_limit(self) -> int:
+        """Get memory cache restriction constraint rules selection variables indices numbers.
+
+        Returns:
+            int: Operational limitations tracking threshold index value integer number.
+        """
         return self._key_limit
 
     @key_limit.setter
     def key_limit(self, value:Union[int,str]):
+        """Set cache mapping limitations constraints bounds rules updating operational modules configurations fields dynamically.
+
+        Args:
+            value (Union[int, str]): New tracking limit constraint specifications parameters token code format selection options.
+        """
         if isinstance(value, str):
             value = value.lower()
             if not value or value in {'no', '-', '--'}:
@@ -1742,9 +2161,26 @@ class JIo:
 
     @property
     def key_limit_str(self) -> str:
+        """Get structural cache limitation description code tokens.
+
+        Returns:
+            str: Parsed context representation parameters string layout text format.
+        """
         return self.z_key_limit_str(self._key_limit)
 
     def change_APIs(self, version:Optional[int]=None, data_type:int=DEF_TYPE, zip_type:int=DEF_ZIP, reset:bool=False):
+        """Re-bind serialization codec abstraction routing pointers across chosen logical engine configuration profiles models.
+
+        Args:
+            version (Optional[int], optional): Target API schema iteration index token code value number. Defaults to None.
+            data_type (int, optional): Coding matrix categorization specification number index value. Defaults to DEF_TYPE.
+            zip_type (int, optional): Data row compression profiling rule classification identifier. Defaults to DEF_ZIP.
+            reset (bool, optional): Obliterate internal state layouts prior to polling system state logs. Defaults to False.
+
+        Raises:
+            TypeError: If input structural identifiers break validation configurations parameters.
+            ValueError: If an unexpected out-of-bounds format version token encounters tracking pipelines.
+        """
         if reset:
             if self.index_size is None: # pragma: no cover
                 self.index_size = DEF_INDEX_SIZE
@@ -1945,6 +2381,15 @@ class JIo:
             raise ValueError(f'invalid version {self.api_ver}->{version} type:{data_type}')
 
     def sorted_key_table_items(self, copy:bool=False, reverse:bool=False) -> Generator[str,int]:
+        """Generate chronologically ordered or reverse ordered key index entries pairs collections sequences.
+
+        Args:
+            copy (bool, optional): Force safe execution isolation boundaries by duplicating indices structures tracks first. Defaults to False.
+            reverse (bool, optional): Flip direction output forcing descending trajectory parsing flows instead. Defaults to False.
+
+        Yields:
+            Tuple[str, int]: Entry identity string descriptor paired along active logical index row line identifier number.
+        """
         if self._key_limit > 0 or copy:
             fp = None
             try:
@@ -2001,6 +2446,18 @@ class JIo:
                     yield lut.pop(row, ''), row
 
     def zip(self, data:bytes, zip_type:Optional[int]=None) -> bytes:
+        """Compress raw binary block sequence elements utilizing active chosen format algorithms drivers factories.
+
+        Args:
+            data (bytes): Target binary payload block array string input context.
+            zip_type (Optional[int], optional): Overriding specification targeting alternative compress parameters rules. Defaults to None.
+
+        Returns:
+            bytes: Compressed block sequence output data.
+
+        Raises:
+            ValueError: If compressor engine throws system level error conditions.
+        """
         zip_type_i = self._zip_type if zip_type is None else zip_type
         if zip_type_i == NO_ZIP:
             return data
@@ -2012,6 +2469,18 @@ class JIo:
             raise ValueError from e
 
     def unzip(self, data:bytes, zip_type:Optional[int]=None) -> bytes:
+        """Decompress data blocks sequences backward returning baseline raw serialization strings contents arrays.
+
+        Args:
+            data (bytes): Input compressed binary payload segment array block.
+            zip_type (Optional[int], optional): Overriding codec rule selector index option parameter integer. Defaults to None.
+
+        Returns:
+            bytes: Decompressed raw byte block string.
+
+        Raises:
+            ValueError: If decompression routines hit unrecoverable stream corruptions parameters markers fields.
+        """
         zip_type_i = self._zip_type if zip_type is None else zip_type
         try:
             try:
@@ -2039,10 +2508,35 @@ class JIo:
             raise ValueError from e
 
     def seek(self, fp:IO, row_id:int):
+        """Reposition system storage stream pointer coordinates directly targeting selected index row boundaries blocks fields.
+
+        Args:
+            fp (IO): Target active open file object interface streaming channel handle.
+            row_id (int): Absolute or negative index tracking row target selector integer position number.
+
+        Returns:
+            int: The newly repositioned file navigation pointer absolute byte index address location.
+        """
         row_id = (self.n_lines + row_id) if row_id < 0 else row_id
         return fp.seek(HEADER_SIZE + row_id * self.index_size)
 
     def write_key(self, fp:IO, row_id:int, key:str, file_id:int, offset:int, row_size:int, val_size:int=0, ver:Optional[int]=None, days:int=-1) -> int:
+        """Commit structured individual key mapping elements definitions metadata straight into active tracking index slots.
+
+        Args:
+            fp (IO): Destination open file descriptor stream handler context.
+            row_id (int): Hardware space line allocation alignment position coordinate number integer value.
+            key (str): Unique data reference lookup descriptor name string token formatting layout context.
+            file_id (int): Segment data section classification index identifier value number code.
+            offset (int): Absolute hardware capacity cursor position displacement indicator.
+            row_size (int): Allocated byte length ceiling constraining row segment storage space tracks.
+            val_size (int, optional): True byte length occupied by payload content items strings. Defaults to 0.
+            ver (Optional[int], optional): Synchronization transaction generation code index tracker. Defaults to None.
+            days (int, optional): Relative calendar sequence tracking day mapping metrics value number integer. Defaults to -1.
+
+        Returns:
+            int: Total absolute verification measurement count bytes committed into physical files.
+        """
         if days < 0:
             days = self.days
         elif days & CHG_DAY_FLAG:
@@ -2076,6 +2570,16 @@ class JIo:
         return fp.write(data + b'\n')
 
     def read_key(self, fp:IO, row_id:int, seek:bool=True) -> Tuple[str, int, int, int, int, int, int]:
+        """Extract individual item schema parameters matrices fields reading indices configurations records rows.
+
+        Args:
+            fp (IO): Open file pointer registration stream controller instance proxy handle.
+            row_id (int): Targeted hardware data space line allocation position slot integer number.
+            seek (bool, optional): Trigger stream pointer repositioning initialization sequences automatically first. Defaults to True.
+
+        Returns:
+            Tuple[str,int,int,int,int,int,int]: Complete row structural metadata metrics (key, file_id, offset, row_size, val_size, ver, days).
+        """
         index_size = self.index_size
         if seek:
             pos = HEADER_SIZE + row_id * index_size
@@ -2086,17 +2590,32 @@ class JIo:
         return self.KEY_loads(data)
 
     def update_days(self) -> int:
+        """Query host clock registers re-aligning tracking timestamp offset integer representations variables.
+
+        Returns:
+            int: Updated sequence number indicator mapping active relative day metrics thresholds.
+        """
         timestamp = int(time())
         self.days = NUM_1970_DAYS + max(0, timestamp - THE_1ST_SEC) // DAY_SEC
         return self.days
 
     def is_updated(self) -> bool:
+        """Validate transactional chronology alignment verifying if memory arrays match disk headers footprints.
+
+        Returns:
+            bool: True if alignment indicators match active storage timeline parameters perfectly, False otherwise.
+        """
         if self.file_size <= 0:
             return False
 
         return self.sync_id == self._sync_id
 
     def reset(self, **kwargs):
+        """Obliterate runtime trackers dropping state variables clearing memory pools tables configurations allocations fields.
+
+        Args:
+            **kwargs: Configuration overrides for baseline engine constants (e.g., index_size, reserved_rate).
+        """
         self.data_type  = kwargs.get('data_type', self._data_type)
         self.zip_type   = kwargs.get('zip_type', self._zip_type)
         self.index_size = max(kwargs.get('index_size', self.index_size), MIN_INDEX_SIZE)
@@ -2112,6 +2631,16 @@ class JIo:
         self.window_size = max(1, int(KEY_FILE_BUF_SIZE / self.index_size))
 
     def write_header(self, fp:IO, seek:bool=True, truncate:bool=False) -> int:
+        """Commit production database status configuration descriptors templates header schemas directly into metadata boundaries fields.
+
+        Args:
+            fp (IO): Destination active streaming interface pipeline driver handle context.
+            seek (bool, optional): Reset channel pointer to zero origin coordinate baseline path. Defaults to True.
+            truncate (bool, optional): Force physical truncation pruning obsolete residual data rows block remnants away. Defaults to False.
+
+        Returns:
+            int: Calculated total byte storage width capacity logged after header updates execution completes.
+        """
         sync_id = self.sync_id
         n_records = self.n_records
         n_lines = self.n_lines
@@ -2157,6 +2686,15 @@ class JIo:
         return file_size
 
     def read_header(self, fp:IO, seek:bool=True) -> JIo:
+        """Parse master configuration descriptor headers grids loading metadata parameters indicators cross-referencing timeline indices numbers.
+
+        Args:
+            fp (IO): Source active streaming channel file pointer wrapper proxy.
+            seek (bool, optional): Reposition navigation pointer tracking variables back onto origin path bounds. Defaults to True.
+
+        Returns:
+            JIo: The synchronized processing engine master instance context reference.
+        """
         if seek: fp.seek(0)
         header = fp.read(HEADER_SIZE)
         _len = len(header)
@@ -2202,6 +2740,14 @@ class JIo:
         return self
 
     def pad(self, data:bytes, max_size:int=0, no_zip:bool=False) -> bytes:
+        """Prune out padding byte array trailing margins restoring raw compressed string context array.
+
+        Args:
+            data (bytes): Aligned padded binary stream data blocks array.
+
+        Returns:
+            bytes: Clean trimmed binary data payload block.
+        """
         data_size = len(data)
         if max_size == 0:
             if self.reserved_rate > 0.:
@@ -2220,6 +2766,14 @@ class JIo:
         return data + pad_byte * n_pad
 
     def unpad(self, data:bytes) -> bytes: # pragma: no cover
+        """Prune out padding byte array trailing margins restoring raw compressed string context array.
+
+        Args:
+            data (bytes): Aligned padded binary stream data blocks array.
+
+        Returns:
+            bytes: Clean trimmed binary data payload block.
+        """
         pad_byte = self.pad_byte
         if pad_byte == b'\n' or pad_byte == b'\xc1':
             return data.rstrip(pad_byte)
@@ -2227,10 +2781,32 @@ class JIo:
         return data.rstrip(pad_byte) + pad_byte
 
     def read_bytes(self, fp:IO, pos:int, row_size:int, val_size:int) -> bytes:
+        """Extract unparsed continuous byte chunks arrays sequences straight from active storage device sectors indices coordinates paths.
+
+        Args:
+            fp (IO): Persistent active streaming channel handler context.
+            pos (int): Absolute destination location offset parameter integer measurement.
+            row_size (int): Segment envelope block tracking width parameter.
+            val_size (int): True data size.
+
+        Returns:
+            bytes: Raw binary block sequence fetched from physical tracks.
+        """
         fp.seek(pos)
         return fp.read(val_size if val_size > 0 else row_size)
 
     def read_value(self, fp:IO, pos:int, row_size:int, val_size:int) -> Any:
+        """Extract and deserialize stored data entities records by evaluating physical storage tracking maps coordinates pointers.
+
+        Args:
+            fp (IO): Active open file descriptor stream handler instance.
+            pos (int): Core target byte position coordinate indicator integer.
+            row_size (int): Sizing constraint boundary defining row block structural margins.
+            val_size (int): Expected unpadded data byte payload sequence length parameters indicators.
+
+        Returns:
+            Any: Unpacked deserialized Python primitive or custom data structure mapping.
+        """
         fp.seek(pos)
         val_bytes, zip_type = (fp.read(val_size), -(self.zip_type+1)) if val_size > 0 else (fp.read(row_size), self.zip_type)
         if not val_bytes:
@@ -2239,6 +2815,15 @@ class JIo:
         return self.loads_with_unzip(val_bytes, zip_type=zip_type)
 
     def dumps_with_zip(self, data:Any, zip_type:Optional[int]=None) -> bytes:
+        """Compress and serialize values blocks payloads utilizing combined encoder algorithms frameworks pipelines.
+
+        Args:
+            data (Any): Python data primitive object layout candidate.
+            zip_type (Optional[int], optional): Custom compression algorithm code tracker identifier index. Defaults to None.
+
+        Returns:
+            bytes: Packed compressed structural binary elements track block sequence array.
+        """
         try:
             val_bytes = self.VAL_dumps(data)
             return self.zip(val_bytes, zip_type=zip_type)
@@ -2248,6 +2833,15 @@ class JIo:
             raise ValueError from e
 
     def loads_with_unzip(self, val_bytes:bytes, zip_type:Optional[int]=None) -> Any:
+        """Unpack and decompress values blocks sequences backward reconstructing original Python structures layout instances profiles models parameters data fields fields.
+
+        Args:
+            val_bytes (bytes): Source compressed binary data chunk payload array block sequence input.
+            zip_type (Optional[int], optional): Overriding algorithmic category reference number identifier selection indicator value. Defaults to None.
+
+        Returns:
+            Any: Deserialized Python data payload mapping output.
+        """
         try:
             unzip_bytes = self.unzip(val_bytes, zip_type=zip_type)
             return self.VAL_loads(unzip_bytes)
@@ -2257,6 +2851,12 @@ class JIo:
             raise ValueError from e
 
     def load_keys(self, fp:IO, force:bool=False):
+        """Synchronize master index tracking datasets maps parsing chronological database operations logs systematically.
+
+        Args:
+            fp (IO): Open index file pointer stream handle manager workspace connection object.
+            force (bool, optional): Overrule timeline sequence checks rebuilding index table layouts absolutely from zero. Defaults to False.
+        """
         n_records       = self.n_records
         n_lines         = self.n_lines
         prev_n_records  = self._n_records
@@ -2610,6 +3210,17 @@ class JIo:
         self.file_size  = fp.seek(0, 2)
 
     def copy_key(self, fp:IO, src_row:int, dst_row:int, decode:bool=False) -> Union[bytes,tuple,list]:
+        """Duplicate an exact slice of row metadata bytes from one slot address to another slot index line.
+
+        Args:
+            fp (IO): Persistent active streaming framework connection file object.
+            src_row (int): Original row source index position number.
+            dst_row (int): Destination target row index line location mapping parameters.
+            decode (bool, optional): De-serialize and unpack raw duplicated lines properties back into tuple parameters objects instead. Defaults to False.
+
+        Returns:
+            Union[bytes, tuple, list]: Copied binary stream metadata chunk array, or unpacked items elements tuple.
+        """
         size = self.index_size
         src_pos = HEADER_SIZE + src_row * size
         dst_pos = HEADER_SIZE + dst_row * size
@@ -2625,6 +3236,15 @@ class JIo:
         return data if not decode else self.KEY_loads(data)
 
     def shift_keys(self, fp:IO, start:int, offset:int=1, size:int=1, block_size:Optional[int]=None): # pragma: no cover
+        """Displace continuous series of index row metadata entries horizontally to allocate open layout rows block zones.
+
+        Args:
+            fp (IO): Destination open streaming stream file handler context.
+            start (int): Absolute baseline rows row index coordinate position where shifting procedures activate.
+            offset (int, optional): Relocation displacement coefficient multiplier integer adjusting target rows coordinates. Defaults to 1.
+            size (int, optional): Combined length measure tracking total logical rows objects to shift. Defaults to 1.
+            block_size (Optional[int], optional): Internal parsing lookahead width constraining buffered file operations rows loops. Defaults to None.
+        """
         n_lines = self.n_lines
         index_size = self.index_size
         if block_size is None:
@@ -2652,6 +3272,14 @@ class JIo:
             fp.write(rd_data)
 
     def resize_keys(self, fp:IO, index_size:int, min_ver:bool=False):
+        """Re-structure physical index layout files modifying rows padding block sizing constraints permanently.
+
+        Args:
+            fp (IO): Persistent open streaming interface proxy connection file object.
+            index_size (int): Target row byte allocation width constraint parameter integer number.
+            min_ver (bool, optional): Overrule version trackers initializing sequential timeline markers coordinates limits fields back onto compressed baselines. Defaults to False.
+        """
+
         # make sure n_lines == total rows in KEY file
         index_size = ((index_size >> 3) << 3) + (8 if index_size & 0x7 else 0)  # 64bit alignment
         n_lines = self.n_lines

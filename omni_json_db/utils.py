@@ -15,6 +15,43 @@ except ImportError:
     debug_break = breakpoint
 #-----------------------------------------------------------------------------
 def Style(msg, bold=None, dim=None, smso=None, underscore=None, blink=None, reverse=None, hidden=None, bright=None, fg=None, black=None, red=None, green=None, yellow=None, blue=None, magenta=None, cyan=None, white=None, bg=None, bg_black=None, bg_red=None, bg_green=None, bg_yellow=None, bg_blue=None, bg_magenta=None, bg_cyan=None, bg_white=None):
+    """Format and apply ANSI terminal styling codes onto text strings for decorative command-line outputs.
+
+    Args:
+        msg (str): The destination target string payload to be styled.
+        bold (Optional[bool], optional): Enable bold or increased intensity layout mode. Defaults to None.
+        dim (Optional[bool], optional): Enable decreased intensity text mode. Defaults to None.
+        smso (Optional[bool], optional): Enable standout parameter configuration mode. Defaults to None.
+        underscore (Optional[bool], optional): Render text with a continuous bottom line. Defaults to None.
+        blink (Optional[bool], optional): Force active text animation loops blinking characters. Defaults to None.
+        reverse (Optional[bool], optional): Swap default foreground colors with background arrays colors. Defaults to None.
+        hidden (Optional[bool], optional): Keep matching output segments masked from visibility screens. Defaults to None.
+        bright (Optional[bool], optional): Boost chosen foreground saturation levels parameters. Defaults to None.
+        fg (Optional[Union[int, str, tuple, list]], optional): Manual configuration mapping foreground color values. Defaults to None.
+        black (Optional[bool], optional): Quick flag routing terminal text color straight to black. Defaults to None.
+        red (Optional[bool], optional): Quick flag routing terminal text color straight to red. Defaults to None.
+        green (Optional[bool], optional): Quick flag routing terminal text color straight to green. Defaults to None.
+        yellow (Optional[bool], optional): Quick flag routing terminal text color straight to yellow. Defaults to None.
+        blue (Optional[bool], optional): Quick flag routing terminal text color straight to blue. Defaults to None.
+        magenta (Optional[bool], optional): Quick flag routing terminal text color straight to magenta. Defaults to None.
+        cyan (Optional[bool], optional): Quick flag routing terminal text color straight to cyan. Defaults to None.
+        white (Optional[bool], optional): Quick flag routing terminal text color straight to white. Defaults to None.
+        bg (Optional[Union[int, str, tuple, list]], optional): Manual configuration mapping background space color block rules. Defaults to None.
+        bg_black (Optional[bool], optional): Apply solid black background matrices blocks onto output spans. Defaults to None.
+        bg_red (Optional[bool], optional): Apply solid red background matrices blocks onto output spans. Defaults to None.
+        bg_green (Optional[bool], optional): Apply solid green background matrices blocks onto output spans. Defaults to None.
+        bg_yellow (Optional[bool], optional): Apply solid yellow background matrices blocks onto output spans. Defaults to None.
+        bg_blue (Optional[bool], optional): Apply solid blue background matrices blocks onto output spans. Defaults to None.
+        bg_magenta (Optional[bool], optional): Apply solid magenta background matrices blocks onto output spans. Defaults to None.
+        bg_cyan (Optional[bool], optional): Apply solid cyan background matrices blocks onto output spans. Defaults to None.
+        bg_white (Optional[bool], optional): Apply solid white background matrices blocks onto output spans. Defaults to None.
+
+    Returns:
+        str: Styled alphanumeric text enclosed inside proper ANSI escape sequence boundary frames.
+
+    Examples:
+        >>> print(Style("Database Connected Successfully!", green=True, bold=True))
+    """
     code = ''
     for ii,vv in enumerate([bold, dim, smso, underscore, blink, reverse, hidden]):
         if not vv:
@@ -63,23 +100,27 @@ def Style(msg, bold=None, dim=None, smso=None, underscore=None, blink=None, reve
 
     return f'{code}{msg}\033[0m'
 
-# https://github.com/dmfrey/FileLock
-# https://github.com/benediktschmitt/py-filelock
-
 #---------------------------------------------------------------------
 #---------------------------------------------------------------------
 #---------------------------------------------------------------------
 #---------------------------------------------------------------------
 class INT_Handler: # pragma: no cover
+    """Thread-safe signal execution interceptor routing keyboard interrupt SIGINT behaviors.
+
+    Postpones default termination actions during active critical system I/O database transactions.
+    """
     __slots__ = {'count', 'lock', 'call_flag'}
 
     def __init__(self):
+        """Initialize the interrupt handler subsystem, overriding global SIGINT handlers frameworks."""
+        self.count = 0
         self.count = 0
         self.lock = Lock()
         self.call_flag = Event()
         signal(SIGINT, self.handler)
 
     def disable(self):
+        """Increment transaction isolation counters to suppress immediate SIGINT runtime execution crashes."""
         with self.lock:
             count = self.count
             self.count = count + 1
@@ -87,17 +128,24 @@ class INT_Handler: # pragma: no cover
                 self.call_flag.clear()
 
     def enable(self):
+        """Decrement transaction isolation counters, enabling system restoration towards default signal actions cascades."""
         with self.lock:
             count = self.count = max(0, self.count-1)
             if count == 0:
                 self.call_flag.clear()
 
     def reset(self):
+        """Forcibly reset inner concurrency tracking integers clearing pending cancellation events back onto zero parameters."""
         with self.lock:
             self.count = 0
             self.call_flag.clear()
 
     def is_called(self) -> bool:
+        """Validate if a keyboard interrupt happened while transaction isolation boundaries were active.
+
+        Returns:
+            bool: True if SIGINT was captured during isolated operations, False otherwise.
+        """
         if self.call_flag.is_set():
             with self.lock:
                 return self.count > 0 and self.call_flag.is_set()
@@ -105,6 +153,12 @@ class INT_Handler: # pragma: no cover
         return False
 
     def handler(self, signum, frame):
+        """Callback handler managing operational signal indicators states routing parameters.
+
+        Args:
+            signum (int): The identifier matching incoming signal codes (e.g., SIGINT).
+            frame (Any): Current system execution stack frame trace pointer context references.
+        """
         with self.lock:
             count = self.count
             if count == 0:
@@ -121,6 +175,7 @@ INT_manager = INT_Handler()
 #---------------------------------------------------------------------
 #---------------------------------------------------------------------
 class FileLockException(Exception):
+    """Custom exception class thrown when internal file locking resource allocations timeout or hit collision errors."""
     pass
 
 #---------------------------------------------------------------------
@@ -130,9 +185,21 @@ class FileLockException(Exception):
 DELAY_S = 1
 
 class FileLock:
+    """High-performance thread-safe and process-safe synchronization locking mechanism manager proxy.
+
+    Coordinates multi-threaded read/write exclusion barriers around structural database assets files pools.
+    """
     __slots__ = {'files_obj', '_is_locked', '_lock', '_cond', '_idents', '_mode', 'SIGINT'}
 
     def __init__(self, files_obj:JFilesBase):
+        """Initialize lock control environments tying mechanisms straight onto chosen driver handles parameters rules.
+
+        Args:
+            files_obj (JFilesBase): Persistent abstract dataset filesystem connection controller interface object instance.
+
+        Raises:
+            TypeError: If the incoming asset driver fails core framework datatype matching rules verification checkpoints.
+        """
         if not isinstance(files_obj, JFilesBase):
             raise TypeError
         self.files_obj = files_obj
@@ -144,13 +211,24 @@ class FileLock:
         self.SIGINT = INT_manager
 
     def __repr__(self) -> str:
+        """Generate summary tracking indicators metrics describing active lock status criteria templates.
+
+        Returns:
+            str: Diagnostic status metrics representation presentation text layout string text.
+        """
         return f'<{type(self).__name__} lock:{int(self.is_locked)} mode:{self._mode} at {hex(id(self))}>'
 
     def __del__(self):
+        """Systematically release outstanding acquired lock layers ensuring clear background thread disconnection cleanups loops."""
         self.release_all()
         self.files_obj.LCK_close()
 
     def release_all(self) -> bool: # pragma: no cover
+        """Forcibly clear outstanding threads registries resetting allocation states metrics fields.
+
+        Returns:
+            bool: True if parameters resolve and wake pending queues entities cleanly, False if lock primitives fail.
+        """
         if not self._lock.acquire(): # pylint: disable=consider-using-with
             return False
 
@@ -172,6 +250,7 @@ class FileLock:
         return True
 
     def reset_lock(self) -> None: # pragma: no cover
+        """systematically purge and delete physical transaction lock tracker files nodes anchors from disk storage devices pools."""
         try:
             self.files_obj.LCK_remove()
         except FileNotFoundError:
@@ -179,14 +258,29 @@ class FileLock:
 
     @property
     def is_locked(self) -> bool:
+        """Check if any transaction thread currently holds active exclusive control flags markers indices.
+
+        Returns:
+            bool: True if the internal active transaction indicator is set, False otherwise.
+        """
         return self._is_locked.is_set()
 
     @property
     def mode(self) -> str:
+        """Get the current operational access lock rule character indicator code token text format.
+
+        Returns:
+            str: Status string token ('r' for read shared lock, 'w' for write exclusive lock, or empty '').
+        """
         return self._mode
 
     @contextmanager
     def rlock(self): # pragma: no cover
+        """Context manager abstraction handling safe shared reading transaction loop isolation blocks rules workflows parameters.
+
+        Yields:
+            None: Context controller manager lifecycle initialization yield lane track.
+        """
         self.acquire(read_only=True)
         try:
             yield
@@ -195,6 +289,11 @@ class FileLock:
 
     @contextmanager
     def wlock(self): # pragma: no cover
+        """Context manager abstraction handling exclusive transaction barrier limits preventing mutative concurrency overlaps cross execution lines.
+
+        Yields:
+            None: Context controller manager lifecycle initialization yield lane track.
+        """
         self.acquire(read_only=False)
         try:
             yield
@@ -203,9 +302,19 @@ class FileLock:
             self.release()
 
     def has_SIGINT(self) -> bool:
+        """Verify if a cancellation signal triggered while thread operations were isolated inside critical transactional logic boundaries.
+
+        Returns:
+            bool: True if an interruption happened, False otherwise.
+        """
         return self.SIGINT.is_called()
 
     def can_lock(self) -> bool:
+        """Test and verify if the storage system allows immediate write lock allocation profiles setup without blocking.
+
+        Returns:
+            bool: True if system resources are ready for non-blocking lock setup, False otherwise.
+        """
         try:
             self.acquire(timeout=0, read_only=False)
             return True
@@ -217,6 +326,21 @@ class FileLock:
             self.release()
 
     def acquire(self, timeout:int=-1, read_only:bool=False) -> int:
+        """Request and secure process isolation locks matching shared reading or exclusive writing transaction guidelines parameters.
+
+        Handles complex scenario workflows like downgrading and upward re-escalation from read tokens straight to write tokens.
+
+        Args:
+            timeout (int, optional): Sizing time-out boundary ceiling threshold constraint regulating maximum lookahead seconds. Defaults to -1.
+            read_only (bool, optional): Choose shared multi-reader capabilities instead of unique execution write slots properties. Defaults to False.
+
+        Returns:
+            int: The active unique execution thread identifier key integer address logging resource allocation controls.
+
+        Raises:
+            RuntimeError: If primary application mutex components break or fail thread lock synchronization steps.
+            FileLockException: If thread operations trigger timeout thresholds limits or encounter non-blocking lock collisions.
+        """
         if not self._lock.acquire(): # pylint: disable=consider-using-with
             raise RuntimeError
 
@@ -299,6 +423,14 @@ class FileLock:
         return ident
 
     def release(self) -> int:
+        """Relinquish acquired concurrency control privileges yielding structural access metrics keys back onto common system execution pools.
+
+        Returns:
+            int: The active executing thread location identifier number integer value.
+
+        Raises:
+            RuntimeError: If multi-threaded file locks primitive synchronization drivers break execution pathways models.
+        """
         if not self._lock.acquire(): # pylint: disable=consider-using-with
             raise RuntimeError
 

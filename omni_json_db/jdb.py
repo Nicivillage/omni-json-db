@@ -32,7 +32,20 @@ from .jdb_file import JFilesBase
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JDbKey2(JDbKey):
+    """Extended read-write key navigation proxy subsystem handling conditional timeline transformations."""
+
     def __setitem__(self, key:Union[str,Any], val:Union[str,int,datetime,dt_date]) -> None:
+        """Modify the calendar tracking metrics associated with specific database keys dynamically.
+
+        Processes complex queries including string identifiers, regex targets, or filtering lambdas.
+
+        Args:
+            key (Union[str, Any]): Unique selection text string, compiled regex pattern, callable condition filter, or historical slice.
+            val (Union[str, int, datetime, dt_date]): Normalized time token descriptor, datetime instance, or calculated days integer.
+
+        Raises:
+            TypeError: If the incoming value or functional keys violate standard layout validation parameters rules.
+        """
         jdb = self.jdb
         #pass;0;assert isinstance(jdb, JDb)
         if isinstance(val, str): # pragma: no cover
@@ -235,11 +248,9 @@ class JDbKey2(JDbKey):
 #-----------------------------------------------------------------------------
 #-----------------------------------------------------------------------------
 class JDb(JDbReader):
-    """
-    Main Database interface providing read and write access to the JDb structure.
-    
-    Supports dictionary-like operations, advanced querying, caching, and network I/O.
-    Ensures safe concurrency using internal locking mechanisms.
+    """Main Database controller managing reading, writing, transaction rollbacks, and multi-part data compaction pipelines.
+
+    Ensures data consistency under high concurrent load using fine-grained file-level system locking primitives.
     """
     def __init__(self,\
             KEY_file:Union[str,bytearray,JFilesBase,JDbReader,None]=None,\
@@ -256,22 +267,76 @@ class JDb(JDbReader):
             max_wsize:Optional[int]=None,\
             flags:Optional[JFlag]=None, **kwargs):
         """
-        Initializes the JDb instance.
-        
+        Initialize the transactional JDb controller object mapping configurations sheets models.
+
         Args:
-            KEY_file: Path to the local database file, or a memory/network file object.
-            data_type (str): Format combination (e.g., 'J+J' for JSON key/val, 'S+S' for MsgPack).
-            zip_type (str): Compression type ('no', 'lz', 'z1', 'br', 'gz').
-            key_limit (str): Limitation parameters for the key table size.
-            cache_limit (int): Number of items to hold in memory (-1 for unlimited, 0 for none).
-            max_file_size (int): Maximum allowable size for partial data files.
-            min_value_size (int): Minimum padded size for data records.
-            index_size (int): Byte size of the key index record (64-bit alignment).
-            reserved_rate (float): Buffer expansion rate for data records.
-            api_ver (int): API iteration version.
-            write_hook (callable): Hook triggered before writing data (takes key and val).
-            max_wsize (int): Maximum dead lines to search for modifications.
-            flags (JFlag): Bit flags to control split/revert behaviors.
+            KEY_file (Union[str, bytearray, JFilesBase, JDbReader, None], optional): File path, memory buffer, or network host.
+                
+                - None | bytearray
+                    - JMemFiles() or JMemFiles(bytearray)
+                - str
+                    - ''                  = use JMemFiles() in memory
+                    - '127.0.0.1:8001'    = use JNetFiles(('127.0.0.1', 8001))
+                    - 'database/test.jdb' = use JDiskFiles(database/test.jdb)
+                - JDbReader               = use JDb.files_obj
+                - JMemFiles | JNetFiles | JDiskFiles
+
+            data_type (Union[str, int, None], optional): Serialization format
+                
+                - "J+J" | KEY=JSON    | VAL=JSON
+                - "J+M" | KEY=JSON    | VAL=Marshal
+                - "J+P" | KEY=JSON    | VAL=Pickle
+                - "J+S" | KEY=JSON    | VAL=msgpack (default)
+                - "J+Y" | KEY=JSON    | VAL=YAML
+                - "S+J" | KEY=Msgpack | VAL=JSON
+                - "S+M" | KEY=Msgpack | VAL=Marshal
+                - "S+P" | KEY=Msgpack | VAL=Pickle
+                - "S+S" | KEY=Msgpack | VAL=msgpack
+                - "S+Y" | KEY=Msgpack | VAL=YAML
+                - "L+J" | KEY=split   | VAL=Json
+                - "M+M" | KEY=Marshal | VAL=Marshal
+
+            zip_type (Union[str, int, None], optional): Compression algorithm to use.
+                
+                - "no" = no compression for VAL. (default)
+                - "gz" = gzip compression(9) for VAL.
+                - "bz" = bz2 compression(9) for VAL.
+                - "xz" = lzma compression for VAL.
+                - "zs" = zstandard compression(22) for VAL.
+                - "br" = brotli compression(6) for VAL.
+                - "z1" = zstandard compression(6) for VAL.
+                - "z2" = zstandard compression(11) for VAL.
+                - "lz" = lz4 compression(0) for VAL.
+
+            key_limit (Union[str, int, None], optional): Key table limitation constraint.
+                
+                - "no" = use DictKeyTable. (default). 
+                - "bt" = use BTreeKeyTable.
+                - "l0"-"l5" = use LiteKeyTable.
+                - +ve: use PartialKeyTable.
+
+            cache_limit (int, optional): In-memory object cache limit.
+                
+                - -1 = unlimited cache.
+                - 0 =  no cache. (default)
+                - +ve = with cache.
+
+            max_file_size (Optional[int], optional): Max size of a single data part.
+            min_value_size (Optional[int], optional): Minimum byte size for value padding.
+            index_size (Optional[int], optional): Fixed byte size for the key index records.
+            reserved_rate (Optional[float], optional): Expansion buffer rate for data rows.
+            api_ver (Optional[int], optional): API structural version limit.
+                
+                - 0 = oldest version.
+                - None = latest version. (default)
+
+            write_hook (Optional[Callable[[str, Any], bool]], optional): Callback triggered before writing.
+            max_wsize (Optional[int], optional): Search window for dead lines. Defaults to 4.
+            flags (Optional[JFlag], optional): Enum flags for modifying revert/split behavior.
+            **kwargs: Extra arguments passed to internal components.
+        
+        Raises:
+            TypeError: Raised if provided arguments are of the incorrect type.
         """
         super().__init__(KEY_file=KEY_file,
             min_value_size=min_value_size,
@@ -290,58 +355,61 @@ class JDb(JDbReader):
             **kwargs)
 
     def __setitem__(self, key:Union[str,Any], val:Any):
-        '''
-        write data to JDb
+        """Commit or modify entry content mapping values utilizing scalar indicators, regex arrays or functions parameters.
 
         Args:
-            key (Any): 
-                TYPE = str | int | float | bool | bytes
-                    > jdb['name'] = val
+            key (Union[str, Any]): Target database lookups selection token lookup identifier or filter schema block query criteria fields.
+                
+                - str | int | float | bool | bytes
+                    
+                    - jdb['name'] = val
             
-                TYPE = slice() | date() | datetime()
-                    > jdb[1:10:2] = val
-                    > jdb[-10.:] = val
-                    > jdb[:] = val
-                    > jdb[date(2020,1,1)::r'key[0-9]'] = val
-                    > jdb[:100:r'key[0-9]'] = val
-                    > jdb[date(2020,1,1)] = val
-                    > jdb[datetime(2020,1,1)] = val
+                - slice | date | datetime
+                    
+                    - jdb[1:10:2] = val
+                    - jdb[-10.:] = val
+                    - jdb[:] = val
+                    - jdb[date(2020,1,1)::r'key[0-9]'] = val
+                    - jdb[:100:r'key[0-9]'] = val
+                    - jdb[date(2020,1,1)] = val
+                    - jdb[datetime(2020,1,1)] = val
             
-                TYPE = function(k,v)
-                    > jdb[lambda k,v: k.startswith('key') and v > 0] = val
-                    > jdb[lambda k,v: v == 10] = val
+                - function(k,v)
+                    
+                    - jdb[lambda k,v: k.startswith('key') and v > 0] = val
+                    - jdb[lambda k,v: v == 10] = val
             
-                TYPE = function(k)
-                    > jdb[lambda k: k[0] == 'k'] = val
+                - function(k)
+                    
+                    - jdb[lambda k: k[0] == 'k'] = val
             
-                TYPE = re.Pattern
-                    > jdb[re.compile(r'key[0-9]')] = val
+                - re.Pattern
+                    
+                    - jdb[re.compile(r'key[0-9]')] = val
             
-                TYPE = tuple() | set() | list() | dict()
-                    > jdb['a', 'b', 'c', 'd'] = val | func
-                    > jdb[('a', 'b'', 'c', 'd')] = val | func
-                    > jdb[{'a', 'b'', 'c', 'd'}] = val | func
-                    > jdb[['a', 'b'', 'c', 'd']] = val | func
-                    > jdb[{'a':0, 'b':1, 'c':2, 'd':3}] = val | func
+                - tuple | set | list | dict
+                    
+                    - jdb['a', 'b', 'c', 'd'] = val | func
+                    - jdb[('a', 'b'', 'c', 'd')] = val | func
+                    - jdb[{'a', 'b'', 'c', 'd'}] = val | func
+                    - jdb[['a', 'b'', 'c', 'd']] = val | func
+                    - jdb[{'a':0, 'b':1, 'c':2, 'd':3}] = val | func
+
+            val (Any): Payload value context or updating mutation callback functional lambda routine.
+
+                - any type but function
+                    
+                    - jdb['name'] = val
             
-            val (Any):
-                TYPE = any type but function
-                    > jdb['name'] = val
-            
-                TYPE = function(k,v)
-                    > jdb['name'] = lambda k,v : v+1
-                    > jdb['name'] = lambda k,v : v+1 if v is not None else None
-                        - replace if exist
-                    > jdb['name'] = lambda k,v : v if v is not None else 1
-                        - insert if not exist
-            
-        
-        Returns:
-            None
-        
+                - function(k,v)
+                    
+                    - jdb['name'] = lambda k,v : v+1
+                    - jdb['name'] = lambda k,v : v+1 if v is not None else None # replace if exist
+                    - jdb['name'] = lambda k,v : v if v is not None else 1 # insert if not exist        
+
         Raises:
-            TypeError: key or val type is invalid
-        '''
+            TypeError: If input validation layers discover corrupted lambda parameter signatures rules or mismatched data types.
+        """
         if isinstance(key, str):
             idx = key.find(SEP_SYM)
             if idx >= 0:
@@ -534,47 +602,49 @@ class JDb(JDbReader):
                 self.f_write(fp, key, val)
 
     def __delitem__(self, key:Union[str,Any]):
-        '''
-        delete data from JDb
+        """Physically drop or unlink selected record entries spaces from database index tracking registries.
 
         Args:
-            key (Any):
-                TYPE = str | int | float | bool | bytes
-                    > del jdb['name']
-            
-                TYPE = slice() | date() | datetime()
-                    > del jdb[1:10:2]
-                    > del jdb[-10.:]
-                    > del jdb[:]
-                    > del jdb[dt.date(2020,1,1)::r'key[0-9]']
-                    > del jdb[:100:r'key[0-9]']
-                    > del jdb[date(2020,1,1)]
-                    > del jdb[datetime(2020,1,1)]
-            
-                TYPE = function(k,v)
-                    > del jdb[lambda k,v: k.startswith('key')]
-                    > del jdb[lambda k,v: v == 10] = val
-            
-                TYPE = function(k)
-                    > del jdb[lambda k: k[0] == 'k']
-            
-                TYPE = re.Pattern
-                    > del jdb[re.compile(r'key[0-9]')]
-            
-                TYPE = tuple() | set() | list() | dict()
-                    > del jdb['a', 'b', 'c', 'd']
-                    > del jdb[('a', 'b', 'c', 'd')]
-                    > del jdb[{'a', 'b', 'c', 'd'}]
-                    > del jdb[['a', 'b', 'c', 'd']]
-                    > del jdb[{'a':0, 'b':1, 'c':2, 'd':3}]
+            key (Union[str, Any]): Unique entry character label token text descriptor, query filter conditional lambda function, regex sequence pattern, or subset iterable sequence.
 
-        Returns:
-            None
-        
+                - str | int | float | bool | bytes
+                    
+                    - del jdb['name']
+            
+                - slice | date | datetime
+                    
+                    - del jdb[1:10:2]
+                    - del jdb[-10.:]
+                    - del jdb[:]
+                    - del jdb[dt.date(2020,1,1)::r'key[0-9]']
+                    - del jdb[:100:r'key[0-9]']
+                    - del jdb[date(2020,1,1)]
+                    - del jdb[datetime(2020,1,1)]
+            
+                - function(k,v)
+                    
+                    - del jdb[lambda k,v: k.startswith('key')]
+                    - del jdb[lambda k,v: v == 10] = val
+            
+                - function(k)
+                    
+                    - del jdb[lambda k: k[0] == 'k']
+            
+                - re.Pattern
+                    
+                    - del jdb[re.compile(r'key[0-9]')]
+            
+                - tuple | set | list | dict
+                    
+                    - del jdb['a', 'b', 'c', 'd']
+                    - del jdb[('a', 'b', 'c', 'd')]
+                    - del jdb[{'a', 'b', 'c', 'd'}]
+                    - del jdb[['a', 'b', 'c', 'd']]
+                    - del jdb[{'a':0, 'b':1, 'c':2, 'd':3}]
+
         Raises:
-            TypeError: key type is invalid
-        '''
-
+            TypeError: If lookups evaluation candidates strike unrecognizable parameter types rules boundaries models.
+        """
         if isinstance(key, str):
             idx = key.find(SEP_SYM)
             if idx >= 0:
@@ -719,25 +789,28 @@ class JDb(JDbReader):
         return
 
     def __isub__(self, keys:Set[str]) -> JDb:
-        """
-        delete data from JDb
-        
+        """Batch remove outstanding entries index references using LIFO strategy blocks optimization.
+
         Args:
-            keys (Any): target key(s)
-                TYPE = JDbReader
-                    > jdb -= other_jdb 
+            keys (Set[str]): Target dataset collection maps array or sibling JDbReader source instance candidate.
+
+                - JDbReader
+                    
+                    - jdb -= other_jdb 
             
-                TYPE = str | int | float | bool | bytes
-                    > jdb -= 'name'
+                - str | int | float | bool | bytes
+                    
+                    - jdb -= 'name'
             
-                TYPE = tuple() | set() | list() | dict()
-                    > jdb -= {'a'', 'b'', 'c'', 'd'}
-                    > jdb -= ('a'', 'b'', 'c'', 'd')
-                    > jdb -= ['a'', 'b'', 'c'', 'd']
-                    > jdb -= {'a':0, 'd':1, 'c'':2, 'd':3}
-        
+                 - tuple | set | list | dict
+                    
+                    - jdb -= {'a'', 'b'', 'c'', 'd'}
+                    - jdb -= ('a'', 'b'', 'c'', 'd')
+                    - jdb -= ['a'', 'b'', 'c'', 'd']
+                    - jdb -= {'a':0, 'd':1, 'c'':2, 'd':3}      
+
         Returns:
-            JDb: self
+            JDb: Self instance with specified nodes decoupled completely.
         """
         if isinstance(keys, JDbReader):
             with self.open(read_only=True) as fp:
@@ -803,27 +876,31 @@ class JDb(JDbReader):
         return self
 
     def __iadd__(self, records:Dict[str,Any]) -> JDb:
-        """
-        insert data to JDb if not exist, and replace data from JDb if exist with different value.
-        
-        Args:
-            keys (Any): target key(s)
-                TYPE = JDbReader
-                    > jdb += other_jdb 
+        """Batch load elements dictionaries mapping records directly in-place rewriting overlapping values lines.
 
-                TYPE = dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
-                    > jdb += {'a':1, 'b':2}
-            
-                TYPE = tuple() | set() | list() == List[Any] == (val1, val2, ..)
-                    > jdb += {'a', 'b'} # jdb.update_vals({'a', 'b'})
-                    > jdb += ('a', 'b') # jdb.update_vals(('a', 'b'))
-                    > jdb += ['a', 'b'] # jdb.update_vals(['a', 'b'])
-        
-                TYPE = str | int | float | bool | bytes
-                    > jdb += 'name' # jdb['name'] = None            
+        Args:
+            records (Dict[str, Any]): Collection mapping identifiers to target value instances or iterable primitives arrays.
                 
+                - JDbReader
+                    
+                    - jdb += other_jdb 
+
+                - dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
+                    
+                    - jdb += {'a':1, 'b':2}
+            
+                - tuple | set | list == List[Any] == (val1, val2, ..)
+                    
+                    - jdb += {'a', 'b'} # jdb.update_vals({'a', 'b'})
+                    - jdb += ('a', 'b') # jdb.update_vals(('a', 'b'))
+                    - jdb += ['a', 'b'] # jdb.update_vals(['a', 'b'])
+        
+                - str | int | float | bool | bytes
+                    
+                    - jdb += 'name' # jdb['name'] = None
+        
         Returns:
-            JDb : self
+            JDb: Self repository context manager interface handle reference.
         """
         if isinstance(records, (JDbReader, dict)):
             self.update(records)
@@ -837,27 +914,30 @@ class JDb(JDbReader):
         return self
 
     def __ior__(self, records:Dict[str,Any]) -> JDb:
-        """
-        insert data to JDb if not exist.
-        
+        """Batch insert unallocated entities matrices structures arrays in-place strictly bypassing existing nodes bounds.
+
         Args:
-            keys (Any): target key(s)
-                TYPE = JDbReader
-                    > jdb |= other_jdb 
+            records (Dict[str, Any]): Target context source map entries.
+                
+                - JDbReader
+                    
+                    - jdb |= other_jdb 
 
-                TYPE = dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
-                    > jdb |= {'a':1, 'b':2}
+                - dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
+                    
+                    - jdb |= {'a':1, 'b':2}
             
-                TYPE = tuple() | set() | list() == List[Any] == (val1, val2, ..)
-                    > jdb |= {'a', 'b'} # jdb.insert_vals({'a', 'b'})
-                    > jdb |= ('a', 'b') # jdb.insert_vals(('a', 'b'))
-                    > jdb |= ['a', 'b'] # jdb.insert_vals(['a', 'b'])
-
-                TYPE = str | int | float | bool | bytes
-                    > jdb |= 'name' # jdb['name'] = None            
-    
+                - tuple | set | list == List[Any] == (val1, val2, ..)
+                    
+                    - jdb |= {'a', 'b'} # jdb.insert_vals({'a', 'b'})
+                    - jdb |= ('a', 'b') # jdb.insert_vals(('a', 'b'))
+                    - jdb |= ['a', 'b'] # jdb.insert_vals(['a', 'b'])
+        
+                - str | int | float | bool | bytes
+                    
+                    - jdb |= 'name' # jdb['name'] = None
         Returns:
-            JDb : self
+            JDb: Self proxy repository interface controller instance framework.
         """
         if isinstance(records, (JDbReader, dict)):
             self.insert(records)
@@ -871,27 +951,30 @@ class JDb(JDbReader):
         return self
 
     def __iand__(self, records:Dict[str,Any]) -> JDb:
-        """
-        replace data from JDb if exist.
-        
-        Args:
-            keys (Any): target key(s)
-                TYPE = JDbReader
-                    > jdb &= other_jdb 
+        """Batch update or override known elements row values data rows avoiding adding unknown outliers into index layers maps.
 
-                TYPE = dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
-                    > jdb &= {'a':1, 'b':2}
-            
-                TYPE = tuple() | set() | list() == Tuple[Any] == (val1, val2, ..)
-                    > jdb &= {'a', 'b'} # jdb.replace_vals({'a', 'b'})
-                    > jdb &= ('a', 'b') # jdb.replace_vals(('a', 'b'))
-                    > jdb &= ['a', 'b'] # jdb.replace_vals(['a', 'b'])
-        
-                TYPE = str | int | float | bool | bytes
-                    > jdb &= 'name' # jdb['name'] = None
+        Args:
+            records (Dict[str, Any]): Translation adjustments dictionary mapping context models fields.
+
+                - JDbReader
                     
+                    - jdb &= other_jdb 
+
+                - dict == Dict[str,Any] == {key1:val1, key2:val2, ..}
+                    
+                    - jdb &= {'a':1, 'b':2}
+            
+                - tuple | set | list == Tuple[Any] == (val1, val2, ..)
+                    
+                    - jdb &= {'a', 'b'} # jdb.replace_vals({'a', 'b'})
+                    - jdb &= ('a', 'b') # jdb.replace_vals(('a', 'b'))
+                    - jdb &= ['a', 'b'] # jdb.replace_vals(['a', 'b'])
+        
+                - str | int | float | bool | bytes
+                    
+                    - jdb &= 'name' # jdb['name'] = None
         Returns:
-            JDb : self
+            JDb: Self database environment framework instance configuration wrapper.
         """
         if isinstance(records, (JDbReader, dict)):
             self.replace(records)
@@ -905,25 +988,29 @@ class JDb(JDbReader):
         return self
 
     def __ixor__(self, keys:Set[str]) -> JDb:
-        """
-        revert data from JDb.
-        
-        Args:
-            keys (Any): target key(s)
-                TYPE = JDbReader
-                    > jdb ^= other_jdb 
+        """Revert or roll back transaction shifts processing selected node indicators parameters history blocks fields.
 
-                TYPE = str | int | float | bool | bytes
-                    > jdb ^= 'name' 
+        Args:
+            keys (Set[str]): Target indicator strings mapping historical recovery boundaries paths.
+
+                - JDbReader
+                    
+                    - jdb ^= other_jdb 
+
+                - str | int | float | bool | bytes
+                    
+                    - jdb ^= 'name' 
             
-                TYPE = dict() | tuple() | set() | list()
-                    > jdb ^= {'a', 'b'} 
-                    > jdb ^= ('a', 'b') 
-                    > jdb ^= ['a', 'b'] 
-                    > jdb ^= {'a':1, 'b':2} # == {'a', 'b}
+                - dict | tuple | set | list
+                    
+                    - jdb ^= {'a', 'b'} 
+                    - jdb ^= ('a', 'b') 
+                    - jdb ^= ['a', 'b'] 
+                    - jdb ^= {'a':1, 'b':2} # == {'a', 'b}
         
+
         Returns:
-            JDb : self
+            JDb: Self chronologically synchronized operational workspace manager proxy.
         """
         if isinstance(keys, str):
             keys = {keys}
@@ -1016,18 +1103,26 @@ class JDb(JDbReader):
         return self
 
     def create_jdb(self, KEY_file:Union[str,bytearray,JFilesBase,JDbReader,None], **kwargs) -> JDb:
+        """Spawn a child read-write companion database instance mimicking host properties models parameters grids.
+
+        Args:
+            KEY_file (Union[str, bytearray, JFilesBase, JDbReader, None]): File path or core buffer source stream.
+            **kwargs: Extra settings overrides passed seamlessly onto the newly initialized instance driver.
+
+        Returns:
+            JDb: A relative fresh JDb session workspace environment instance.
+        """
         return JDb(KEY_file=KEY_file, **kwargs)
 
     def pop(self, key:str, default_val:Optional[Any]=None) -> Any:
-        """
-        pop data from JDb if exist
-        
+        """Isolate, pop, and erase an individual item record from indices returning previous python object contents.
+
         Args:
-            key (str): Identifier 
-            default_val (None, optional): return default value if key not exist
-        
+            key (str): Target dictionary lookup query choice token text string descriptor criteria.
+            default_val (Optional[Any], optional): Fallback data assigned if lookup registers miss elements indicators. Defaults to None.
+
         Returns:
-            Any: matched key's value
+            Any: Unpacked Python object value, or default_val if missing from storage tables.
         """
         with self.open(read_only=True) as fp:
             try:
@@ -1042,6 +1137,14 @@ class JDb(JDbReader):
                 return default_val
 
     def unmodify(self, *records:str) -> Dict[str,Any]:
+        """Undo dynamic value row mutations rolling records states back onto prior chronological signatures logs on file layer.
+
+        Args:
+            *records (str): Variadic sequence choosing target keys or groups tracking indicators strings to restore.
+
+        Returns:
+            Dict[str, Any]: Mapping dictionary summarizing all successfully restored entities linked along previous positions data.
+        """
         keys = set()
         results = {}
         for key in records: # pragma: no cover
@@ -1084,6 +1187,14 @@ class JDb(JDbReader):
             return results
 
     def unremove(self, *records:str) -> Dict[str,Any]:
+        """Resurrect dropped index tracking references pulling deleted outlier components back into live databases index pools blocks.
+
+        Args:
+            *records (str): Unique identifier token strings matching targeted deleted records candidates tracking keys data.
+
+        Returns:
+            Dict[str, Any]: Execution summary index tracing resurrected targets aligned with recovered layouts coordinates parameters logs.
+        """
         keys = set()
         results = {}
         for key in records: # pragma: no cover
@@ -1128,6 +1239,14 @@ class JDb(JDbReader):
             return results
 
     def revert(self, *records:str) -> Dict[str,Any]:
+        """Symmetrically execute recovery pipelines rolling back either variable values updates or item omissions based on history bounds logs.
+
+        Args:
+            *records (str): Target text identifiers tracking variables contexts fields.
+
+        Returns:
+            Dict[str, Any]: Collection mapping keys fields onto recovery structural outcomes status codes.
+        """
         results = {}
         keys = set()
         for key in records:  # pragma: no cover
@@ -1191,6 +1310,15 @@ class JDb(JDbReader):
             return results
 
     def recycle(self, parent:str='', level:int=0, merge:bool=False, fill_zero:bool=False, verbose:bool=True): # pragma: no cover
+        """Purge unlinked dead storage slots rewriting physical indexes sheets to reclaim unallocated disk space footprints metrics.
+
+        Args:
+            parent (str, optional): Hierarchy prefix namespace path denoting partition trees boundaries. Defaults to ''.
+            level (int, optional): Recursion limitation deepness constraining nested children evaluation scopes paths rules. Defaults to 0.
+            merge (bool, optional): Combine contiguous sparse gaps inside data segments layout storage files. Defaults to False.
+            fill_zero (bool, optional): Overwrite unallocated physical tracks with structural zeroes vectors preventing leakage traces. Defaults to False.
+            verbose (bool, optional): Enable terminal logging text parameters metrics visualization alerts. Defaults to True.
+        """
         del_rows = []
         with self.open(read_only=False) as fp:
             io = self.io
@@ -1423,6 +1551,16 @@ class JDb(JDbReader):
             print(f'[Done|{"M" if merge else "C"}] recycle ... size:{self.fsize:,} {io.n_records:,}/{io.n_lines:,}(old={old_lines:,}) tb:{len(io.file_table)}')
 
     def clear(self, agree:str='no', wait_sec:int=10, **kwargs) -> bool:
+        """Obliterate data registries resetting storage files templates entirely to an empty layout framework.
+
+        Args:
+            agree (str, optional): Validation security phrase. Must equal strictly string token 'yes' to proceed. Defaults to 'no'.
+            wait_sec (int, optional): Counting delay buffer allowing developers to abort using Ctrl-C indicators. Defaults to 10.
+            **kwargs: Extra settings overrides configuring properties mapped onto the fresh structural sheets.
+
+        Returns:
+            bool: True if destruction and reallocation finalize properly, False otherwise.
+        """
         if agree.lower() == 'yes':
             if wait_sec > 0:
                 print(Style(f'!!! After {wait_sec}s, all the data will be cleared !!! (Ctrl-C to stop)', cyan=1, bold=1, underscore=1))
@@ -1476,6 +1614,16 @@ class JDb(JDbReader):
         return True
 
     def resize_index_size(self, index_size:int=0, extra_size:int=8, min_ver:bool=True) -> int:
+        """Modify fixed tracking structural allocation padding bounding database row dimensions headers fields permanently.
+
+        Args:
+            index_size (int, optional): Targeted byte allocation width constraint indicator. 0 forces dynamic scan configuration. Defaults to 0.
+            extra_size (int, optional): Buffer allocation extension safety boundary width metrics. Defaults to 8.
+            min_ver (bool, optional): Reset baseline synchronizations version markers indices. Defaults to True.
+
+        Returns:
+            int: Calculated final index padding dimension assigned across files structures.
+        """
         extra_size = max(1, extra_size)
         with self.open(read_only=False) as fp_dict:
             io, fp_dict, key_fp = self.f_get_fp(fp_dict)
@@ -1498,6 +1646,18 @@ class JDb(JDbReader):
             return io.index_size
 
     def change_KEY(self, KEY_type:str, api_ver:Optional[int]=None) -> bool:
+        """Transcode indexing layouts formats blueprint rules rewriting master entry trackers parameters configurations.
+
+        Args:
+            KEY_type (str): Format encoding specification classification string token text ('J', 'L', 'M', 'S').
+            api_ver (Optional[int], optional): Physical logical standard implementation layout version index number. Defaults to None.
+
+        Returns:
+            bool: True if structure transposition completes altering the master file, False otherwise.
+
+        Raises:
+            ValueError: If target codes evaluate out of structural ranges definitions thresholds.
+        """
         KEY_type_u = KEY_type.upper()
         if KEY_type_u not in 'LMJS':
             raise ValueError('KEY_type must be J|L|M|S')
@@ -1573,7 +1733,44 @@ class JDb(JDbReader):
 
         return True
 
-    def upgrade(self, folder:str='bak', zip_type:Union[str,int,None]=None, data_type:Union[str,int,None]=None, fast_mode:bool=True, **kwargs) -> JDb:
+    def upgrade(self, folder:str='bak', data_type:Union[str,int,None]=None, zip_type:Union[str,int,None]=None, fast_mode:bool=True, **kwargs) -> JDb:
+        """Migrate database models records maps layouts transforming internal formats properties fields seamlessly via proxy nodes staging tracks.
+
+        Args:
+            folder (str, optional): Target temporary folder location token. Defaults to 'bak'.
+            data_type (Union[str, int, None], optional): Override serialization schema standard encoding format settings. Defaults to None.
+                
+                - "J+J" | KEY=JSON    | VAL=JSON
+                - "J+M" | KEY=JSON    | VAL=Marshal
+                - "J+P" | KEY=JSON    | VAL=Pickle
+                - "J+S" | KEY=JSON    | VAL=msgpack (default)
+                - "J+Y" | KEY=JSON    | VAL=YAML
+                - "S+J" | KEY=Msgpack | VAL=JSON
+                - "S+M" | KEY=Msgpack | VAL=Marshal
+                - "S+P" | KEY=Msgpack | VAL=Pickle
+                - "S+S" | KEY=Msgpack | VAL=msgpack
+                - "S+Y" | KEY=Msgpack | VAL=YAML
+                - "L+J" | KEY=split   | VAL=Json
+                - "M+M" | KEY=Marshal | VAL=Marshal
+            
+            zip_type (Union[str, int, None], optional): Override compression layout parameters criteria markers fields. Defaults to None.
+                
+                - "no" = no compression for VAL. (default)
+                - "gz" = gzip compression(9) for VAL.
+                - "bz" = bz2 compression(9) for VAL.
+                - "xz" = lzma compression for VAL.
+                - "zs" = zstandard compression(22) for VAL.
+                - "br" = brotli compression(6) for VAL.
+                - "z1" = zstandard compression(6) for VAL.
+                - "z2" = zstandard compression(11) for VAL.
+                - "lz" = lz4 compression(0) for VAL.
+
+            fast_mode (bool, optional): Skip extraction loop algorithms stages if transcoders align uniformly. Defaults to True.
+            **kwargs: Extra parameters passed straight to construction modules.
+
+        Returns:
+            JDb: Updated system interface reference workspace engine.
+        """
         if zip_type is None:
             zip_type = self.io._zip_type
 
@@ -1585,8 +1782,8 @@ class JDb(JDbReader):
 
         kwargs['api_ver'] = kwargs.get('api_ver', self.io.api_ver)
         path = self.files_obj.get_path(folder=folder)
-        bak_jdb = JDb(path if path else None, zip_type=zip_type, data_type=data_type, **kwargs)
-        bak_jdb = self.clone_to(bak_jdb, signal='b', zip_type=zip_type, data_type=data_type, fast_mode=fast_mode, **kwargs)
+        bak_jdb = JDb(path if path else None, data_type=data_type, zip_type=zip_type, **kwargs)
+        bak_jdb = self.clone_to(bak_jdb, signal='b', data_type=data_type, zip_type=zip_type, fast_mode=fast_mode, **kwargs)
 
         with self.KEY_fopen(read_only=False) as key_fp_d:
             with bak_jdb.open(read_only=True):
@@ -1664,6 +1861,20 @@ class JDb(JDbReader):
             return self
 
     def restore(self, folder:str='bak', fast_mode:bool=True, **kwargs) -> JDb:
+        """Overwrite current repository layers tracking matrices components structures using elements matching chosen backup files templates.
+
+        Args:
+            folder (Union[str, JDb]): File directory absolute lookup address string parameter or active source driver reader object workspace. Defaults to 'bak'.
+            fast_mode (bool, optional): Skip complex transposition steps if files properties mirror baseline configurations structures. Defaults to True.
+            **kwargs: Extra parameters routed forward seamlessly onto replication controllers.
+
+        Returns:
+            JDb: Current context active database session interface manager handle.
+
+        Raises:
+            ValueError: If lookup coordinates target unallocated positions boundaries paths context lines.
+            TypeError: If input structural data candidate fails standard module validation checks.
+        """
         if isinstance(folder, JDb):
             jdb = folder
 
@@ -1682,7 +1893,44 @@ class JDb(JDbReader):
 
         return jdb.clone_to(self, signal='r', fast_mode=fast_mode, **kwargs)
 
-    def backup(self, folder:Optional[str]=None, zip_type:Union[str,int,None]=None, data_type:Union[str,int,None]=None, fast_mode:bool=True, **kwargs) -> JDb:
+    def backup(self, folder:Optional[str]=None, data_type:Union[str,int,None]=None, zip_type:Union[str,int,None]=None, fast_mode:bool=True, **kwargs) -> JDb:
+        """Clone structural matrix database state tracking sheets records fields exporting backups profiles to targeted destination folders clusters.
+
+        Args:
+            folder (Optional[str], optional): Target system descriptor path code string identifier template context. Defaults to None.
+            data_type (Union[str, int, None], optional): Override layout specifications format setting selection index. Defaults to None.
+                
+                - "J+J" | KEY=JSON    | VAL=JSON
+                - "J+M" | KEY=JSON    | VAL=Marshal
+                - "J+P" | KEY=JSON    | VAL=Pickle
+                - "J+S" | KEY=JSON    | VAL=msgpack (default)
+                - "J+Y" | KEY=JSON    | VAL=YAML
+                - "S+J" | KEY=Msgpack | VAL=JSON
+                - "S+M" | KEY=Msgpack | VAL=Marshal
+                - "S+P" | KEY=Msgpack | VAL=Pickle
+                - "S+S" | KEY=Msgpack | VAL=msgpack
+                - "S+Y" | KEY=Msgpack | VAL=YAML
+                - "L+J" | KEY=split   | VAL=Json
+                - "M+M" | KEY=Marshal | VAL=Marshal
+
+            zip_type (Union[str, int, None], optional): Override snapshot baseline row compression properties values limits rules. Defaults to None.
+
+                - "no" = no compression for VAL. (default)
+                - "gz" = gzip compression(9) for VAL.
+                - "bz" = bz2 compression(9) for VAL.
+                - "xz" = lzma compression for VAL.
+                - "zs" = zstandard compression(22) for VAL.
+                - "br" = brotli compression(6) for VAL.
+                - "z1" = zstandard compression(6) for VAL.
+                - "z2" = zstandard compression(11) for VAL.
+                - "lz" = lz4 compression(0) for VAL.
+
+            fast_mode (bool, optional): Accelerate copy algorithms utilizing binary segment streams maps mirroring rules. Defaults to True.
+            **kwargs: Extra attributes routed down seamlessly to child construction factories.
+
+        Returns:
+            JDb: Initialized destination replica workspace proxy connection interface object.
+        """
         if zip_type is None:
             zip_type = self.io._zip_type
 
@@ -1694,9 +1942,56 @@ class JDb(JDbReader):
 
         path = self.files_obj.get_path(folder) or None
         target_jdb = JDb(path if path else None, zip_type=zip_type, data_type=data_type, **kwargs)
-        return self.clone_to(target_jdb, zip_type=zip_type, data_type=data_type, fast_mode=fast_mode, **kwargs)
+        return self.clone_to(target_jdb, data_type=data_type,  zip_type=zip_type, fast_mode=fast_mode, **kwargs)
 
-    def clone_to(self, target:Union[JDb,JFilesBase,str], signal:str='.', fast_mode:bool=True, max_file_size:Optional[int]=None, min_value_size:Optional[int]=None, index_size:Optional[int]=None, reserved_rate:Optional[float]=None, zip_type:Union[str,int,None]=None, data_type:Union[str,int,None]=None, cache_limit:int=0, api_ver:Optional[int]=None, **kwargs) -> JDb:
+    def clone_to(self, target:Union[JDb,JFilesBase,str], signal:str='.', fast_mode:bool=True, max_file_size:Optional[int]=None, min_value_size:Optional[int]=None, index_size:Optional[int]=None, reserved_rate:Optional[float]=None, data_type:Union[str,int,None]=None, zip_type:Union[str,int,None]=None, cache_limit:int=0, api_ver:Optional[int]=None, **kwargs) -> JDb:
+        """Clone data mapping layouts structures templates from self source environment into target destination storage configurations drivers arrays frames.
+
+        Args:
+            target (Union[JDb, JFilesBase, str]): Target storage manager engine wrapper, location token path text format layout selector string, or absolute instance proxy context.
+            signal (str, optional): Heartbeat monitoring output string token mapped onto runtime console loops indicators text. Defaults to '.'.
+            fast_mode (bool, optional): Engage raw binary stream optimization mechanics bypassing transcoders pipelines loops if schemas align uniformly. Defaults to True.
+            max_file_size (Optional[int], optional): Custom destination storage capacity parameter setting data file segment bounds. Defaults to None.
+            min_value_size (Optional[int], optional): Minimum alignment floor width constraint bounding row expansion buffers tracks. Defaults to None.
+            index_size (Optional[int], optional): Fixed byte width defining destination row padding boundaries constraints markers fields. Defaults to None.
+            reserved_rate (Optional[float], optional): Cushion expansion multiplier allocated across target workspace segments fields. Defaults to None.
+            data_type (Union[str, int, None], optional): Format coding classification token specifying serialization configurations layout schemas. Defaults to None.
+                
+                - "J+J" | KEY=JSON    | VAL=JSON
+                - "J+M" | KEY=JSON    | VAL=Marshal
+                - "J+P" | KEY=JSON    | VAL=Pickle
+                - "J+S" | KEY=JSON    | VAL=msgpack (default)
+                - "J+Y" | KEY=JSON    | VAL=YAML
+                - "S+J" | KEY=Msgpack | VAL=JSON
+                - "S+M" | KEY=Msgpack | VAL=Marshal
+                - "S+P" | KEY=Msgpack | VAL=Pickle
+                - "S+S" | KEY=Msgpack | VAL=msgpack
+                - "S+Y" | KEY=Msgpack | VAL=YAML
+                - "L+J" | KEY=split   | VAL=Json
+                - "M+M" | KEY=Marshal | VAL=Marshal
+          
+            zip_type (Union[str, int, None], optional): Targeted compression algorithm code token selection settings options values. Defaults to None.
+            
+                - "no" = no compression for VAL. (default)
+                - "gz" = gzip compression(9) for VAL.
+                - "bz" = bz2 compression(9) for VAL.
+                - "xz" = lzma compression for VAL.
+                - "zs" = zstandard compression(22) for VAL.
+                - "br" = brotli compression(6) for VAL.
+                - "z1" = zstandard compression(6) for VAL.
+                - "z2" = zstandard compression(11) for VAL.
+                - "lz" = lz4 compression(0) for VAL.
+
+            cache_limit (int, optional): Memory limitation constraint variables values bounding destination cache lookup objects registry. Defaults to 0.
+            api_ver (Optional[int], optional): Logical logical operational standard blueprint standard iteration version identifier. Defaults to None.
+            **kwargs: Extra settings overrides routed down seamlessly onto compilation factory pipelines matrices.
+
+        Returns:
+            JDb: The initialized populated target destination session environment workspace model context.
+
+        Raises:
+            TypeError: If input target elements candidates fail driver framework integration matching expectations rules profiles metrics tracks.
+        """
         if isinstance(target, JDb):
             jdb = target
             if self is jdb:
@@ -1920,12 +2215,12 @@ class JDb(JDbReader):
                     #pass;0;assert isinstance(d_jdb, JDb)
                     s_jdb.clone_to(d_jdb,
                         signal=signal,
+                        data_type=data_type,
+                        zip_type=zip_type,
                         max_file_size=max_file_size,
                         min_value_size=min_value_size,
                         index_size=index_size,
                         reserved_rate=reserved_rate,
-                        zip_type=zip_type,
-                        data_type=data_type,
                         cache_limit=cache_limit, **kwargs)
 
                 if src_io.swap_id == dst_io.swap_id:
@@ -1937,43 +2232,58 @@ class JDb(JDbReader):
         return jdb
 
     def setdefault(self, key:str, val:Any):
-        """
-        create record if not exist
+        """Initialize chosen lookup strings with default values if currently missing from the index registries.
 
         Args:
-            key (str): record key
-            val (Any): record default value
+            key (str): Target text reference indicator lookup query string token context.
+            val (Any): Fallback object template payload context rules data fields variables.
         """
         with self.open(read_only=True) as fp:
             if key not in self.io.key_table:
                 self.f_write(fp, key, val)
 
     def set(self, key:str, val:Any, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> Optional[Any]:
-        '''
-            [1] key
-                type = str | int | float | bool
-                    > jdb['name'] = val
+        """Write single entry content maps configuring transaction modifiers rules indices tracks.
 
-            [2] val
-                type = any type but function
-                    > jdb['name'] = val
+        Args:
+            key (str): Target unique key lookup choice token identifier text string.
+                
+                - str
 
-                type = function(k,v)
-                    > jdb['name'] = lambda k,v : v+1
-                    > jdb['name'] = lambda k,v : v+1 if v is not None else None
-                        - replace if exist
-                    > jdb['name'] = lambda k,v : v if v is not None else 1
-                        - insert if not exist
+                    - jdb[ke)] = val
 
-            [3] flags:JFlag
-                    > REVERT  = allow to revert
-                    > SPLIT   = allow to split largest row size to two
+                - int | float | bool
 
-            [4] max_wsize:int : max dead lines search
-                    > None = use default max_wsize (4)
-                    > -ve ~ 0 = disable searching
-        '''
+                    - jdb[str(key)] = val
 
+            val (Any): Scalar object layout payload or conditional update callback lambda routine context.
+
+                - any type but function
+                    
+                    - jdb['name'] = val
+
+                - function(k,v)
+
+                    - jdb['name'] = lambda k,v : v+1
+                    - jdb['name'] = lambda k,v : v+1 if v is not None else None # replace if exist
+                    - jdb['name'] = lambda k,v : v if v is not None else 1 # insert if not exist
+            
+            flags (Optional[JFlag], optional): strategic behavioral modifiers. Defaults to None.
+
+                    - REVERT  = allow to revert
+                    - SPLIT   = allow to split largest row size to two
+
+            max_wsize (Optional[int], optional): Maximum search scope bounding lookahead sweeps across dead lines elements. Defaults to None.
+
+                    - None = use default max_wsize (4)
+                    - -ve = disable searching
+
+        Returns:
+            Optional[Any]: The committed data payload if changes successfully execute, old value context otherwise.
+
+        Raises:
+            TypeError: If input candidate argument structures fail validation tests specifications models.
+        """
         if callable(val):
             func = val
             arg_cnt = func.__code__.co_argcount
@@ -1999,169 +2309,138 @@ class JDb(JDbReader):
         return None
 
     def set_n(self, records:Dict[str,Any], default_val:Optional[Any]=None, replace:bool=True, insert:bool=True, **kwargs) -> Dict[str,Any]:
-        """
-        insert record to JDb if not exist, replace old record if exist
-        
+        """Batch commit key-value collections mapping records into active database frames indexes lanes.
+
         Args:
-            records (Dict[str,Any]): target records (eg. {key1:val1, key2:val2, ..})
-            default_val (Optional[Any], optional): record's value if records is set/list/tuple 
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (Dict[str, Any]): Inputs target mapping records collections datasets.
+            default_val (Optional[Any], optional): Fallback value mapping variables context if entries lookups evaluate abstract. Defaults to None.
+            replace (bool, optional): Rewrite existing data points if indexes discover overlapping indicators matches parameters. Defaults to True.
+            insert (bool, optional): Initialize unknown outliers creating fresh structural slots sheets fields records lines. Defaults to True.
+            **kwargs: Extra parameters routed down directly into underlying translation execution engines factories.
+
         Returns:
-            Dict[str, Any]: changed records
-        
+            Dict[str, Any]: Changed objects log maps summary array tracing modified elements paths.
+
         Raises:
-            TypeError: records is invalid type
+            TypeError: If input candidate collection elements break schema constraints maps parameters.
         """
         return self.add(records, default_val=default_val, replace=replace, insert=insert, is_list=False, **kwargs)
 
     def set_days(self, key:str, days:Union[int,float,str,dt_date,datetime]) -> bool:
-        '''
-            days
-                - [int] days since 1-1-1
-                - [str] 'YYYY-MM-DD' or 'YYYY-MM-DD YYYY-MM-DD'
-                - [date] date object
-                - [datetime] datetime object
-                - [float] timestamp
-        '''
+        """Modify tracking calendar timestamps elapsed days values logs stored within entry index parameters coordinates.
+
+        Args:
+            key (str): Target descriptor lookups selection token lookup string classification label context.
+            days (Union[int, float, str, dt_date, datetime]): Timeline offset integer, calendar object instance, or formatted date text code.
+                
+                - int : days since 1-1-1
+                - str : 'YYYY-MM-DD' or 'YYYY-MM-DD YYYY-MM-DD'
+                - date | datetime 
+                - float : timestamp
+
+        Returns:
+            bool: True if modification markers indices write successfully, False fallback if errors strike connections.
+        """
         with self.open(read_only=True) as fp:
             return self.f_change_days(fp, key, days)
 
     def insert(self, records:Dict[str,Any], default_val:Optional[Any]=None, **kwargs) -> Dict[str,Any]:
-        """
-        insert record to JDb if not exist 
-        
+        """Batch write new elements parameters metrics ignoring existing records overlaps boundaries positions lines fields metrics logs maps.
+
         Args:
-            records (Dict[str,Any]): target records (eg. {key1:val1, key2:val2, ..})
-            default_val (Optional[Any], optional): record's value if records is set/list/tuple 
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (Dict[str, Any]): Core context source dictionary mapping indices properties fields.
+            default_val (Optional[Any], optional): Fallback placeholder variable options parameters settings models. Defaults to None.
+            **kwargs: Extra transaction isolation modifiers parameters variables.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Subset tracking entries successfully registered inside indices fields.
         """
         return self.add(records, default_val=default_val, replace=False, insert=True, is_list=False, **kwargs)
 
     def update(self, records:Dict[str,Any], default_val:Optional[Any]=None, **kwargs) -> Dict[str,Any]:
-        """
-        insert record to JDb if not exist, replace old record if exist
-        
+        """Batch load elements dictionaries mapping records directly in-place rewriting overlapping lines fields metrics fields.
+
         Args:
-            records (Dict[str,Any]): target records (eg. {key1:val1, key2:val2, ..})
-            default_val (Optional[Any], optional): record's value if records is set/list/tuple 
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (Dict[str, Any]): Datasets records dictionary mapping collections lines tracks.
+            default_val (Optional[Any], optional): Fallback parameter value context fields variables. Defaults to None.
+            **kwargs: Strategic execution modifier attributes passed smoothly onto translation processors factories frameworks wrappers.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Catalog tracing successfully updated dataset items.
         """
         return self.add(records, default_val=default_val, replace=True, insert=True, is_list=False, **kwargs)
 
     def replace(self, records:Dict[str,Any], default_val:Optional[Any]=None, **kwargs) -> Dict[str,Any]:
-        """
-        replace record from JDb if exist 
-        
+        """Batch rewrite pre-existing record lines parameters properties fields metrics values profiles avoiding adding unknown outliers into index pools blocks.
+
         Args:
-            records (Dict[str,Any]): target records (eg. {key1:val1, key2:val2, ..})
-            default_val (Optional[Any], optional): record's value if records is set/list/tuple 
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (Dict[str, Any]): Target translation dictionary allocating adjustments details configurations rules models sheets text fields context layers frameworks grids.
+            default_val (Optional[Any], optional): Fallback value. Defaults to None.
+            **kwargs: Extra execution runtime attributes.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Replaced records data array tracking modified items coordinates parameters positions numbers blocks.
         """
         return self.add(records, default_val=default_val, replace=True, insert=False, is_list=False, **kwargs)
 
     def append(self, records:List[Any], **kwargs) -> Dict[str, Any]:
-        """
-        append records without key (key=sync_id) to JDb
-        
+        """Batch append continuous sequence datasets mapping rows values content segments parts blocks anonymously utilizing sequence numbers as descriptors labels markers arrays sheets.
+
         Args:
-            records (List[Any]): target records (eg. [val1, val2, ..])
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (List[Any]): Array container processing distinct values entries configurations records fields metrics.
+            **kwargs: Strategic flags variables modifiers parameters context settings blocks layers maps tracks systems.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Generated mapping fields matching identity codes tokens integers sequences keys to individual saved objects data lines.
         """
         return self.add(records, default_val=None, replace=True, insert=True, is_list=True, **kwargs)
 
     def insert_vals(self, records:List[Any], **kwargs) -> Dict[str,Any]:
-        """
-        append records without key (key=sync_id) to JDb
-        
+        """Batch insert row value metrics collections anonymously into new entries indices slots.
+
         Args:
-            records (List[Any]): target records (eg. [val1, val2, ..])
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (List[Any]): Sequence collection containing target entries values arrays fields indicators models tracks metrics.
+            **kwargs: Extra transactional parameter switches.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Mapping catalog aligning sequence identities variables to generated records outputs.
         """
         return self.add(records, default_val=None, replace=False, insert=True, is_list=True, **kwargs)
 
     def update_vals(self, records:List[Any], **kwargs) -> Dict[str,Any]:
-        """
-        append records without key (key=sync_id) to JDb
-        
+        """Batch update or append anonymous values collections entries into database lanes maps.
+
         Args:
-            records (List[Any]): target records (eg. [val1, val2, ..])
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (List[Any]): Input items sequences list container.
+            **kwargs: Strategic transaction properties context configuration rules parameters trackers handles.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Generated identity key dictionary tracks tracking saved row models.
         """
         return self.add(records, default_val=None, replace=True, insert=True, is_list=True, **kwargs)
 
     def replace_vals(self, records:List[Any], **kwargs) -> Dict[str,Any]:
-        """
-        append records without key (key=sync_id) to JDb
-        
+        """Batch rewrite anonymous value elements sequences arrays avoiding appending unknown new index records lines.
+
         Args:
-            records (List[Any]): target records (eg. [val1, val2, ..])
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (List[Any]): Input sequences collection mapping variables targets logs properties.
+            **kwargs: Extra hardware processing configuration overrides.
+
         Returns:
-            Dict[str, Any]: changed records
-        
-        Raises:
-            TypeError: records is invalid type
+            Dict[str, Any]: Updated objects matrix maps summary results array tracking modified items.
         """
         return self.add(records, default_val=None, replace=True, insert=False, is_list=True, **kwargs)
 
     def to_csv(self, csv_file:Union[str,IO], key:Optional[str]=None, **kwargs) -> bool:
-        """Export data to CSV file
-        
-        Args:
-            csv_file
-                - str: output file path
-                - IO : IO object
+        """Export internal data frames records fields matrices structures logs straight into tabular structured CSV data formats sheets files documents models.
 
-            key (Optional[str], optional): 1st key fields            
-        
+        Args:
+            csv_file (Union[str, IO]): Target filename string locator path or open streaming file-like interface stream descriptor handle context.
+            key (Optional[str], optional): Custom field token labeling the principal identifier index row data columns fields layout. Defaults to None.
+            **kwargs: Extra formatting parameters routed directly onto inner DictWriter configuration profiles blueprints rules options fields.
+
         Returns:
-            bool: True = okay, False = fail
+            bool: True if extraction workflows finish completely without errors metrics profiles, False fallback otherwise.
         """
         fields = []
         with self.open(read_only=True) as fp:
@@ -2293,6 +2572,18 @@ class JDb(JDbReader):
         return True
 
     def from_csv(self, csv_file:Union[str,IO], key:Optional[str]=None, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None, **kwargs) -> JDb:
+        """Import structured CSV text streams context sheets fields records translating tabular elements rows matrices back onto native database maps datasets collections.
+
+        Args:
+            csv_file (Union[str, IO]): Source filesystem node address string path notation text or open stream descriptor channel container proxy.
+            key (Optional[str], optional): Identity reference label indicating target unique row key column header text layout. Defaults to None.
+            flags (Optional[JFlag], optional): strategic operational behavioral modifiers flags. Defaults to None.
+            max_wsize (Optional[int], optional): Search window capacity constraint bounding dead structural entry lookahead scans width parameters. Defaults to None.
+            **kwargs: Extra parameters routed down seamlessly onto secondary underlying DictReader extraction components.
+
+        Returns:
+            JDb: Current context modified active database environment workspace proxy handle.
+        """
         csv_fp,owns_it = (open(csv_file, 'r', newline='', encoding='utf-8'), True) \
                 if isinstance(csv_file, str) else (csv_file, False) # pylint: disable=consider-using-with
 
@@ -2329,6 +2620,18 @@ class JDb(JDbReader):
         return self
 
     def from_sqlite(self, src:Union[str,Connection], batch_size:int=-1) -> JDb:
+        """Migrate SQLite transaction tables models matrices records mapping columns profiles straight into isolated nested database groups spaces partitions layers.
+
+        Args:
+            src (Union[str, Connection]): Full database file system address string text path context layout parameters maps or active connection instance handle proxy.
+            batch_size (int, optional): Iteration size constraint capping total rows fetched during single chunk cycles processes frames metrics. Defaults to -1.
+
+        Returns:
+            JDb: Updated relational engine state interface snapshot workspace.
+
+        Raises:
+            TypeError: If input sources violate target standard database connection configurations criteria parameters properties fields.
+        """
         owns_conn = False
         if isinstance(src, str):
             conn = sql_connect(src)
@@ -2376,6 +2679,14 @@ class JDb(JDbReader):
                 conn.close()
 
     def from_ini(self, src:Union[str,IO]) -> JDb:
+        """Parse configuration template sheets fields context records extracting variables settings structures from classic text INI files layout templates blocks rules.
+
+        Args:
+            src (Union[str, IO]): Full target system text string path context layout parameters maps or active open file object stream interface pointer locator.
+
+        Returns:
+            JDb: Updated relational configuration workspace context handle.
+        """
         parser = ConfigParser()
         if isinstance(src, str): # pragma: no cover
             parser.read(src)
@@ -2390,6 +2701,17 @@ class JDb(JDbReader):
             return self
 
     def from_toml(self, src:Union[str,IO]) -> JDb:
+        """Parse TOML specification sheets structures arrays data profiles converting unified hierarchical trees structures documents models directly into record metrics paths context.
+
+        Args:
+            src (Union[str, IO]): Target localization filename string path context blueprint text or open streaming object channel handle wrapper proxy.
+
+        Returns:
+            JDb: Updated dataset configurations management engine state.
+
+        Raises:
+            ModuleNotFoundError: If the host runtime environment misses required third party parsing extensions framework dependencies libraries wrapper hooks.
+        """
         if not toml_loads:
             raise ModuleNotFoundError("tomli is not installed. Please pip install tomli.")
 
@@ -2412,6 +2734,19 @@ class JDb(JDbReader):
             return self
 
     def reinit(self, records:Dict[str,Any], default_val:Optional[Any]=None, is_list:bool=False, agree:str='no', wait_sec:int=10, **kwargs) -> bool:
+        """Purge tracking maps drop active registers systematically rebuilding complete datasets layout configurations from scratch matching incoming records fields.
+
+        Args:
+            records (Dict[str, Any]): Incoming context source matrix data candidates.
+            default_val (Optional[Any], optional): Fallback variable context setting parameter assigned if structures evaluate blank. Defaults to None.
+            is_list (bool, optional): Adjust entry evaluation tracks converting lists structures sequences anonymously vs mapping dictionaries keys fields text format. Defaults to False.
+            agree (str, optional): Safeguard validation checkpoint rule phrase. Must equal strictly 'yes' to proceed. Defaults to 'no'.
+            wait_sec (int, optional): Interactive buffer countdown seconds threshold capping destruction loops parameters. Defaults to 10.
+            **kwargs: Extra attributes override keys passed down seamlessly to re-initialization routines.
+
+        Returns:
+            bool: True if allocation routines commit the fresh structures records maps smoothly, False if checkpoint guards intercept execution paths tracks.
+        """
         jdb = None
         if isinstance(records, JDbReader):
             if records == jdb:
@@ -2485,23 +2820,22 @@ class JDb(JDbReader):
             return self.io.n_records > 0
 
     def add(self, records:Dict[str,Any], default_val:Optional[Any]=None, replace:bool=True, insert:bool=True, is_list:bool=False, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> Dict[str,Any]:
-        """
-        write record(s) to database
-        
+        """Core serialization writing gatekeeper pipeline routing entries insertions or value replacements into database tracks layers maps.
+
         Args:
-            records (Any): records to be written                 
-            default_val (Optional[Any], optional): 
-            replace (bool, optional): if key is exist, write new value to old record
-            insert (bool, optional): if key not exist, create new record
-            is_list (bool, optional): records = Dict[str,Any] if True else Set[str]
-            flags (Optional[JFlag], optional): write flags
-            max_wsize (Optional[int], optional): max search window
-        
+            records (Dict[str, Any]): Repository container processing elements candidates maps records fields text tokens variables.
+            default_val (Optional[Any], optional): Fallback value mapping variables context assigned if source candidate parses abstract. Defaults to None.
+            replace (bool, optional): Overwrite pre-existing records keys if lookups discover shared matching indicators indices parameters logs. Defaults to True.
+            insert (bool, optional): Generate brand new data records lines spaces if target descriptors evaluate absent from index pools. Defaults to True.
+            is_list (bool, optional): Toggle switch adapting input types tracking sequences listing vs dictionaries tracking key-value parameters. Defaults to False.
+            flags (Optional[JFlag], optional): strategic behavioral modifiers. Defaults to None.
+            max_wsize (Optional[int], optional): Scan scope lookahead density limit constraining dead rows tracking checks loops fields. Defaults to None.
+
         Returns:
-            Dict[str, Any]: changed records
-        
+            Dict[str, Any]: Descriptive dictionary summary array tracking all successfully committed modified entries fields log data metrics records fields.
+
         Raises:
-            TypeError: records is invalid type
+            TypeError: If input validation candicates structures break system framework specifications classes.
         """
         if not insert and not replace:
             # not insert and not replace [do nothing]
@@ -2648,6 +2982,14 @@ class JDb(JDbReader):
         return chg_table
 
     def remove(self, *records:str) -> Dict[str,Any]:
+        """Batch decouple unlinking targeted index entry row selections extracting values payloads concurrently back onto general system pools.
+
+        Args:
+            *records (str): Variadic references containing key strings tokens to systematically purge from active pools sheets.
+
+        Returns:
+            Dict[str, Any]: Dictionary mapping successfully deleted record elements strings identifiers back onto their contents maps arrays blocks.
+        """
         keys = set()
         for key in records: # pragma: no cover
             if isinstance(key, str):
@@ -2705,6 +3047,14 @@ class JDb(JDbReader):
             return ret
 
     def remove_fast(self, *records:str) -> Set[str]:
+        """Batch decouple index parameters keys ignoring payload decryption parsing stages optimizing deletion streams throughput processing speed metrics profiles.
+
+        Args:
+            *records (str): Unique text identifier token references variadic selection arguments context layout parameters maps tracks systems layers.
+
+        Returns:
+            Set[str]: Registry containing successfully discarded items keys list mappings logs.
+        """
         keys = set()
         for key in records: # pragma: no cover
             if isinstance(key, str):
@@ -2762,6 +3112,17 @@ class JDb(JDbReader):
         return ret
 
     def rename(self, keys:Dict[str,str]) -> Dict[str,str]:
+        """Batch re-label items mapping old text identifier codes tokens parameters straight into new destination unique name strings indices.
+
+        Args:
+            keys (Dict[str, str]): Translation target dictionary pairing former tags descriptors keys with freshly requested identifiers text.
+
+        Returns:
+            Dict[str, str]: Catalog mapping all altered item names coordinates changes records fields logs properties context.
+
+        Raises:
+            TypeError: If input mapping elements fail standard structural collection constraints.
+        """
         if not isinstance(keys, dict):
             raise TypeError(keys)
 
@@ -2785,6 +3146,17 @@ class JDb(JDbReader):
         return ret
 
     def check_error(self, parent:str='', level:int=0, fix_it:bool=False, verbose:bool=True) -> dict:
+        """Validate logical structure integrity scan index layers maps checking anomalies corruptions cross-referencing files parameters indicators metrics models.
+
+        Args:
+            parent (str, optional): Hierarchy node namespace trace tracking origin references variables tokens. Defaults to ''.
+            level (int, optional): Deepness limitation parameter capping child database recursion lookahead cycles. Defaults to 0.
+            fix_it (bool, optional): Trigger dynamic reconstruction algorithms rewriting mismatching structures headers rows templates objects. Defaults to False.
+            verbose (bool, optional): Enable terminal diagnostics print traces mapping structural verification flows metrics grids windows panels fields fields logs. Defaults to True.
+
+        Returns:
+            dict: Registry tracing all identified data alignment failures associated against internal sequence identifiers numbers lines.
+        """
         error = {}
         del_parts = {}
         cache = []
@@ -3177,6 +3549,17 @@ class JDb(JDbReader):
         return error
 
     def add_group(self, key:str) -> JDb:
+        """Initialize an isolated nested cluster sub-database partition workspace domain.
+
+        Args:
+            key (str): Subfolder tracking name selector token text string.
+
+        Returns:
+            JDb: The newly constructed partition node interface.
+
+        Raises:
+            KeyError: If incoming cluster nomenclature violates basic string character constraints.
+        """
         if not re_match(r'^[0-9A-Za-z_]+$', key):
             raise KeyError
 
@@ -3192,6 +3575,14 @@ class JDb(JDbReader):
             return jdb
 
     def del_group(self, key:str) -> Optional[JDb]:
+        """Exterminate a nested sub-database cluster namespace dropping structural tracking indicators permanently.
+
+        Args:
+            key (str): Sub-space lookup target selector token text string.
+
+        Returns:
+            Optional[JDb]: The destroyed group instance handle if successfully cleared, None fallback otherwise.
+        """
         with self.open(read_only=True) as fp:
             jdb = self.f_get_group(fp, key)
             if isinstance(jdb, JDb):
@@ -3203,6 +3594,15 @@ class JDb(JDbReader):
         return None
 
     def f_get_child(self, fp_dict:Dict[int,IO], name:str) -> Optional[JDb]:
+        """Low level routing factory resolving child detached storage pipelines inside current streams boundaries maps trackers.
+
+        Args:
+            fp_dict (Dict[int, IO]): Active file pointers registration collection maps table.
+            name (str): Named item node partition token text descriptor selector.
+
+        Returns:
+            Optional[JDb]: Open operational child dataset workspace reference, or None if validation fails.
+        """
         io = self.io
         childs = self.childs
         groups = io.groups
@@ -3235,6 +3635,18 @@ class JDb(JDbReader):
         return jdb
 
     def f_change_days(self, fp_dict:Dict[int,IO], key:str, days:Union[int,float,str,dt_date,datetime]=-1) -> bool:
+        """
+        Modify the timestamp of a specific Key at the low level without changing the data content.
+
+        Args:
+            fp_dict (Dict[int, IO]): The file descriptor set for the current thread.
+            key (str): The name of the target key.
+            days (Union[int, float, str, dt_date, datetime], optional): The number of days, time object, or string representation of the date to be written. Defaults to -1.
+
+        Returns:
+            bool: Returns True if the write is successful; returns False if it fails or the Key is not found.
+
+        """
         if not isinstance(key, str): # pragma: no cover
             key = str(key)
 
@@ -3273,6 +3685,18 @@ class JDb(JDbReader):
         return False
 
     def _get_dead_row(self, key_fp, key:str, req_size:int, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> Tuple[int,int,str,int,int,int]:
+        """ Internal core method: Find a reusable space block within the "deleted or invalid rows (Dead Lines)" of the database index structure.
+
+        Args:
+            key_fp (IO): The open stream pointer of the KEY index file.
+            key (str): The target key name currently undergoing the write operation.
+            req_size (int): The space capacity required for the newly written binary data.
+            flags (Optional[JFlag], optional): Operation flags controlling whether space Revert or Split is allowed.
+            max_wsize (Optional[int], optional): The maximum search window length for finding dead lines.
+
+        Returns:
+            Tuple[int, int, str, int, int, int]: Contains (safe baseline row, found reusable row number, old key name, file ID, offset, block size).
+        """
         io = self.io
         chg_keys = self.chg_keys
         n_lines = io.n_lines
@@ -3344,6 +3768,19 @@ class JDb(JDbReader):
         return start_line, -1, '', 0, 0, 0
 
     def f_write_bytes(self, fp_dict:Dict[int,IO], key:str, val:bytes, days:int=-1, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> bool:
+        """ Low-level pipeline method: directly commit raw un-serialized binary byte blocks into physical content sectors tracks.
+
+        Args:
+            fp_dict (Dict[int, IO]): Current thread transactional context opens registries handles maps.
+            key (str): Unique data record pointer lookup name token layout string.
+            val (bytes): Raw uncompressed payload byte configuration data chunk array.
+            days (int, optional): Compact timeline relative days counter index selection number. Defaults to -1.
+            flags (Optional[JFlag], optional): Custom modifier bitflags overrides. Defaults to None.
+            max_wsize (Optional[int], optional): Maximum search lookahead steps window constraint index number. Defaults to None.
+
+        Returns:
+            bool: True if binary persistence pipelines execute smoothly, False fallback otherwise.
+        """
         if isinstance(days, str): # pragma: no cover
             try:
                 days = JIo.z_conv_str_to_days(days)
@@ -3583,6 +4020,22 @@ class JDb(JDbReader):
         return True
 
     def f_write(self, fp_dict:Dict[int,IO], key:str, val:Any, days:int=-1, flags:Optional[JFlag]=None, max_wsize:Optional[int]=None) -> bool:
+        """ Low-level pipeline method: serialize, compress, and record dynamic Python value entries mapping into target filesystem tracks safely.
+
+        Args:
+            fp_dict (Dict[int, IO]): Open file handles tracking collections metrics maps.
+            key (str): Destination dictionary descriptor reference character token text string layout context.
+            val (Any): Payload instance content python object structure to serialize.
+            days (int, optional): Calendar modification timing tracking parameter representation number. Defaults to -1.
+            flags (Optional[JFlag], optional): strategic behavioral modifiers flags. Defaults to None.
+            max_wsize (Optional[int], optional): Maximum search lookahead steps window constraint index number. Defaults to None.
+
+        Returns:
+            bool: True if serialization persistence completes smoothly, False if transaction logic drops inputs.
+
+        Raises:
+            TypeError: If interceptor write hooks reject incoming inputs configuration candidate attributes.
+        """
         if isinstance(days, str):
             try:
                 days = JIo.z_conv_str_to_days(days)
@@ -4060,6 +4513,18 @@ class JDb(JDbReader):
         return True
 
     def f_delete(self, fp_dict:Dict[int,IO], key:str, read_value:bool=True, row:Optional[int]=None, flags:Optional[JFlag]=None):
+        """ Low-level pipeline method: physically unlink a specified entity, compact index arrays, and manage transaction rollbacks.
+
+        Args:
+            fp_dict (Dict[int, IO]): Open file pointers maps repository.
+            key (str): Unique entry identification lookup code label string.
+            read_value (bool, optional): Unpack and return original data contents before discarding tracking pointers. Defaults to True.
+            row (Optional[int], optional): Precise allocation row block offset index to bypass search indices. Defaults to None.
+            flags (Optional[JFlag], optional): strategic behavioral modifiers flags. Defaults to None.
+
+        Returns:
+            Any: The unlinked python value payload object, or group workspace if targeted entity maps a nested sub-database.
+        """
         io = self.io
         if row is None or key:
             if not isinstance(key, str): # pragma: no cover
@@ -4165,6 +4630,17 @@ class JDb(JDbReader):
         return val
 
     def f_undelete(self, fp_dict:Dict[int,IO], key:str, row:Optional[int]=None, flags:Optional[JFlag]=None) -> Optional[Tuple[int,int,int,int,int]]:
+        """ Low-level pipeline method: resurrect dropped or unlinked indices descriptors variables from dead logs sectors.
+
+        Args:
+            fp_dict (Dict[int, IO]): Persistent active handles arrays tables registers.
+            key (str): Missing identifier text selector string to target and recover.
+            row (Optional[int], optional): Precise hardware target slot alignment position index to bypass lookup cycles loops. Defaults to None.
+            flags (Optional[JFlag], optional): strategic modifiers flags. Defaults to None.
+
+        Returns:
+            Optional[Tuple[int,int,int,int,int]]: Core allocation parameters metadata tuple summarizing recovered slot parameters if successful, None otherwise.
+        """
         if not isinstance(key, str):
             key = str(key)
 
@@ -4252,6 +4728,17 @@ class JDb(JDbReader):
         return safe_h, file_id, offset, row_size, val_size
 
     def f_unwrite(self, fp_dict:Dict[int,IO], key:str, row:Optional[int]=None, flags:Optional[JFlag]=None) -> Optional[Tuple[int,int,int,int,int]]:
+        """ Low-level pipeline method: roll back dynamic record modifications shifting indices properties maps back to legacy content points maps.
+
+        Args:
+            fp_dict (Dict[int, IO]): Persistent active system registers stream descriptor collections.
+            key (str): Unique dictionary descriptive name string token format selector query fields.
+            row (Optional[int], optional): Target layout position index bounding search rows loops. Defaults to None.
+            flags (Optional[JFlag], optional): strategic modifiers behavioral flags. Defaults to None.
+
+        Returns:
+            Optional[Tuple[int,int,int,int,int]]: Execution parameters logging adjusted item metrics parameters integers if successful, None otherwise.
+        """
         if not isinstance(key, str): # pragma: no cover
             key = str(key)
 
@@ -4323,6 +4810,19 @@ class JDb(JDbReader):
         return old_row, file_id, offset, row_size, val_size
 
     def f_rename(self, fp_dict:Dict[int,IO], key:str, new_key:str) -> bool:
+        """ Low-level pipeline method: alter unique index reference tokens text strings mapping keys metadata blocks layout configurations.
+
+        Args:
+            fp_dict (Dict[int, IO]): Active file handler matrix registration array mapping pools handles.
+            key (str): Existing unique query selector name token label string format context fields fields.
+            new_key (str): Newly requested target character string identification indicator code text.
+
+        Returns:
+            bool: True if identity name properties switch successfully inside tracking registers, False otherwise.
+
+        Raises:
+            KeyError: If destination identifier string token collides against pre-allocated records fields data layers.
+        """
         if not isinstance(key, str): # pragma: no cover
             key = str(key)
 
@@ -4363,6 +4863,15 @@ class JDb(JDbReader):
 
     @contextmanager
     def f_switch(self, fp_dict:Dict[int,IO], read_only:bool=True) -> Generator[Dict[int,IO]]:
+        """ Context manager layout proxy enabling safe transition across concurrent file operational access modes logic paths rules trackers.
+
+        Args:
+            fp_dict (Dict[int, IO]): Active context repository maps handles tables registers.
+            read_only (bool, optional): Access strategy profile mode flag. Defaults to True.
+
+        Yields:
+            Dict[int, IO]: Open active context streams repository descriptors indices variables collections.
+        """
         try:
             file_lock = self.file_lock
             if file_lock.is_locked:
@@ -4411,6 +4920,17 @@ class JDb(JDbReader):
             yield fp_dict
 
     def f_get_write_fp(self, fp_dict:Dict[int,IO]) -> Tuple[JIo,Dict[int,IO],IO,bool]:
+        """ Acquire and configure exclusive writing streams access permissions channels context maps matrices metrics.
+
+        Args:
+            fp_dict (Dict[int, IO]): Active file handler dictionary tracking metrics variables configuration parameters.
+
+        Returns:
+            Tuple[JIo, Dict[int, IO], IO, bool]: Consolidated processing context payload group returning core matrix, file map registers, main descriptor pointer, and timeline shift synchronization flag state.
+
+        Raises:
+            RuntimeError: If multi-threaded file locks context cannot initialize isolation guards blocks parameters thresholds numbers.
+        """
         sync_id = self.io.sync_id
         file_lock = self.file_lock
         if file_lock.is_locked:
@@ -4579,13 +5099,17 @@ class JDb(JDbReader):
         
         Args:
             data (Any): target Python data
+                
                 - support str/bytes/int/float/bool/None/dict/list/set/tuple/JDb
+            
             ret_type (str, optional): return format                
-                "J" : Json format (default)
-                "M" : Marshal format
-                "P" : Pickle format
-                "S" : Msgpack format
-                "Y" : YAML format
+                
+                - "J" = JSON format (default)
+                - "M" = Marshal format
+                - "P" = Pickle format
+                - "S" = Msgpack format
+                - "Y" = YAML format
+
         Returns:
             bytes: converted data 
         
@@ -4620,11 +5144,13 @@ class JDb(JDbReader):
         Args:
             data (Any): Json/Msgpack/Marshal/Pickle bytes                
             ret_type (str, optional): return format
-                "J" : Json format
-                "M" : Marshal format
-                "P" : Pickle format
-                "S" : Msgpack format
-                "Y" : YAML format
+
+                - "J" = JSON format
+                - "M" = Marshal format
+                - "P" = Pickle format
+                - "S" = Msgpack format
+                - "Y" = YAML format
+
         Returns:
             bytes: Python data
         
