@@ -3,13 +3,15 @@ English_ | 中文_
 .. _English: https://github.com/lukatrum/omni-json-db/
 .. _中文: https://github.com/Lukatrum/omni-json-db/blob/main/README-tc.rst
 
+|Version| |License|
+
 |Logo|
 
 ..
 
    A nimble squirrel swiftly gathers a golden forest’s worth of acorns!
 
-|Version| |Build Status| |readthedocs| |Pylint| |Codacy| |Coverage| |License|
+|Build Status| |readthedocs| |Pylint| |Codacy| |Coverage|
 
 📌 Supported Python Versions
 ****************************
@@ -709,6 +711,10 @@ Below are examples of how to utilize the various parameters and NoSQL syntax.
    # Age is 28
    res = jdb.find(vals={'age': {'$eq': 28}}) # find(ANY={'$eq': 28})
    assert list(res) == ['user_4']
+
+   # 40 >= Age > 25
+   res = jdb.find(vals={'age': {'$gt': 25, '$le': 40}})
+   assert list(res) == ['user_1', 'user_3', 'user_4']
 
    # 3. Logical Grouping (AND, OR, NOT)
    #----------------------------------------------------------

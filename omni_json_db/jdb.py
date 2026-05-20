@@ -1376,7 +1376,7 @@ class JDb(JDbReader):
             verbose (bool, optional): Enable terminal logging text parameters metrics visualization alerts. Defaults to True.
         
         Example:
-            >>> jdb.recycle(level=4, merge=False, verbose=False)
+            >>> jdb.recycle(merge=False)
         """
         del_rows = []
         with self.open(read_only=False) as fp:
@@ -5249,6 +5249,13 @@ class JDb(JDbReader):
         
         Raises:
             ValueError: invalid ret_type
+
+        Example:
+            >>> dumps([1,2], 'J')
+            >>> dumps([1,2], 'M') 
+            >>> dumps([1,2], 'P') 
+            >>> dumps([1,2], 'S') 
+            >>> dumps([1,2], 'Y')
         """
         if isinstance(data, JDbReader):
             if ret_type is None:
@@ -5290,6 +5297,13 @@ class JDb(JDbReader):
         
         Raises:
             ValueError: invalid ret_type
+
+        Example:
+            >>> loads(dumps([1,2], 'J'), 'J') # Output: [1,2]
+            >>> loads(dumps([1,2], 'M'), 'M') # Output: [1,2] 
+            >>> loads(dumps([1,2], 'P'), 'P') # Output: [1,2]
+            >>> loads(dumps([1,2], 'S'), 'S') # Output: [1,2]
+            >>> loads(dumps([1,2], 'Y'), 'J') # Output: [1,2]
         """
         ret_type_u = ret_type.upper()
         if ret_type_u not in 'JMPSY':

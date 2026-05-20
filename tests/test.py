@@ -433,6 +433,14 @@ class TestJDb(unittest.TestCase):
             res = jdb.find(ANY={'$eq': 28})
             self.assertTrue(set(res) == {'user_4'})
 
+            # 40 >= Age > 25
+            res = jdb.find(vals={'age': {'$gt': 25, '$le':40}})
+            self.assertTrue(set(res) == {'user_1', 'user_3', 'user_4'})
+
+            # not 40 >= Age > 25
+            res = jdb.find(NOT={'age': {'$gt': 25, '$le':40}})
+            self.assertTrue(set(res) == {'user_2'})
+
             # 3. Logical Grouping (AND, OR, NOT)
             #----------------------------------------------------------
             # Age >= 25 AND Age <= 30

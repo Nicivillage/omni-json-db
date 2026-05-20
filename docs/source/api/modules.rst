@@ -1,7 +1,8 @@
-omni_json_db
-============
+API Documentation
+-----------------
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 3
 
    omni_json_db
+

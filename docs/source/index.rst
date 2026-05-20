@@ -1,10 +1,12 @@
+|Version| |License|
+
 |Logo|
 
 ..
 
    A nimble squirrel swiftly gathers a golden forest’s worth of acorns!
 
-|Version| |Build Status| |Pylint| |Codacy| |Coverage| |License|
+|Build Status| |Pylint| |Codacy| |Coverage|
 
 
 .. omni-json-db documentation master file, created by
@@ -16,58 +18,45 @@
 
 
 Welcome to omni-json-db!
--------------------------
-**omni-json-db** is a high-performance, embedded database engine designed for Python developers. It bridges the gap between the extreme speed of a Key-Value store and the powerful querying capabilities of a document database.
+========================
 
-Built for ultra-high throughput and thread-safety, **omni-json-db** leverages modern serialization (*JSON*, *MsgPack*, *marshal*, *pickle*, *YAML*) and compression to provide a storage layer that is often significantly faster than *SQLite* for *JSON*-heavy workloads. Whether you are building a local cache, a log aggregator, or a distributed microservice, **omni-json-db** provides the tools to handle data at scale with "Zero-Config" simplicity.
-
-Unlike traditional *SQLite* or *NoSQL* databases, **omni-json-db** allows you to use native Python syntax (slicing, Lambdas, Regex, Set operations) to query and manipulate data. It also features built-in "Time-Travel", state rollbacks (Undo/Redo).
-
-* **Schema-LESS**: Store complex, nested data without pre-defining tables.
-
-* **Server-LESS**: Direct disk access without the overhead of a database server.
-
-* **SQL-LESS**: Use native Python syntax, Regex, and Lambdas for data manipulation.
-
-**Installation**:
-
-.. code-block:: bash
-
-   pip install omni-json-db
-
-**Quick Start**:
+**omni-json-db** is a zero-config, powerful JSON database with compression. No schema, no setup, just data.
 
 .. code-block:: python
+   
+   >>> from omni_json_db import JDb
+   >>> jdb = JDb('db.jdb')
+   >>> jdb += [{'name': 'John', 'age': 22}]
+   >>> jdb.find(ANY='John')
+   {'1': {'name': 'John', 'age': 22}}
 
-   from omni_json_db import JDb
 
-   # Initialize the database
-   jdb = JDb("example.jdb")
-
-   # Store data
-   jdb["user:1"] = {"name": "Ryan", "role": "Developer"}
-
-   # Retrieve data
-   print(jdb["user:1"]["name"]) # Output: Ryan
-
-   # Bulk Update
-   jdb += {
-       "user:2": {"name": "Alice", "role": "Admin"},
-       "user:3": {"name": "Bob", "role": "Developer"}
-   }
-
-   # Query data
-   matches = jdb.find(ANY="Alice")
-   print(matches["user:2"]["name"]) # Output: Alice
-
-API Reference
--------------
+User's Guide
+========================
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+
+   intro
+   getting-started
+   usage
+
+
+API Reference
+========================
+
+.. toctree::
+   :maxdepth: 2
 
    api/modules
+
+Additional Notes
+========================
+
+.. toctree::
+   :maxdepth: 2
+
+   contribute
 
 
 .. |Logo| image:: https://raw.githubusercontent.com/lukatrum/omni-json-db/master/artwork/logo.png
